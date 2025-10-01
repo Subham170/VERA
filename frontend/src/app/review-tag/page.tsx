@@ -141,7 +141,6 @@ export default function ReviewTagPage() {
   return (
     <AuthenticatedLayout>
       <main className="min-h-screen bg-[#181A1D]">
-        <SiteNavbar />
 
         {/* Close Button - Positioned just below navbar on top-right */}
         <button

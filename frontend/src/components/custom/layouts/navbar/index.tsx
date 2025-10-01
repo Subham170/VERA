@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { Bell, Grid2X2, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState, useRef } from "react";
+import { ProfileDropdown } from "@/components/custom/layouts/profile-dropdown";
 
 function LogoMark() {
   const router = useRouter();
@@ -65,13 +67,19 @@ function SearchInput() {
 
 export default function SiteNavbar() {
   const router = useRouter();
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleCreateTag = () => {
     router.push("/create-tag");
   };
 
-  const handleProfile = () => {
-    router.push("/profile");
+  const handleProfileClick = () => {
+    setIsProfileDropdownOpen(!isProfileDropdownOpen);
+  };
+
+  const closeProfileDropdown = () => {
+    setIsProfileDropdownOpen(false);
   };
 
   return (
@@ -124,14 +132,26 @@ export default function SiteNavbar() {
             <Bell className="size-5 text-gray-400 hover:text-white transition-colors duration-200" />
           </button>
 
-          <button onClick={handleProfile} aria-label="Profile">
-          <Avatar className="size-9 ring-1 ring-gray-600 hover:ring-blue-400/50 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md">
-            <AvatarImage src="/avatar-placeholder.png" alt="Your profile" />
-            <AvatarFallback className="bg-[#2E3137] text-white hover:bg-[#3A3D45] transition-colors duration-200">
-              YO
-            </AvatarFallback>
-          </Avatar>
-          </button>
+          <div className="relative">
+            <button 
+              ref={profileButtonRef}
+              onClick={handleProfileClick} 
+              aria-label="Profile"
+            >
+              <Avatar className="size-9 ring-1 ring-gray-600 hover:ring-blue-400/50 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md">
+                <AvatarImage src="/avatar-placeholder.png" alt="Your profile" />
+                <AvatarFallback className="bg-[#2E3137] text-white hover:bg-[#3A3D45] transition-colors duration-200">
+                  YO
+                </AvatarFallback>
+              </Avatar>
+            </button>
+            
+            <ProfileDropdown
+              isOpen={isProfileDropdownOpen}
+              onClose={closeProfileDropdown}
+              triggerRef={profileButtonRef}
+            />
+          </div>
         </div>
       </nav>
     </header>

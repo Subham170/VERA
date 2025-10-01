@@ -1,9 +1,7 @@
 "use client";
 
 import AuthenticatedLayout from "@/components/custom/layouts/authenticated-layout";
-import SiteNavbar from "@/components/custom/layouts/navbar";
-import MediaTypeSelectionModal from "@/components/custom/media-type-selection-modal";
-import TagNewMediaModal from "@/components/custom/tag-new-media-modal";
+import TagNewMediaForm from "@/components/custom/tag-new-media-form";
 import { useAuth } from "@/context/AuthContext";
 import { useTagData } from "@/context/TagDataContext";
 import { X } from "lucide-react";
@@ -16,12 +14,6 @@ export default function CreateTagPage() {
   const { setTagData } = useTagData();
   const router = useRouter();
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [showMediaTypeSelection, setShowMediaTypeSelection] = useState(true);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedMediaType, setSelectedMediaType] = useState<
-    "image" | "video" | "audio" | "text" | null
-  >(null);
-  const [importedUrl, setImportedUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthorized) {
@@ -37,10 +29,10 @@ export default function CreateTagPage() {
     const tagData = {
       fileName: data.fileName,
       description: data.description || "",
-      mediaType: selectedMediaType || "image",
-      isBulkUpload: data.isBulkUpload || false,
-      fileCount: data.fileCount || 1,
-      importedUrl: data.importedUrl || null,
+      mediaType: data.mediaType || "image",
+      isBulkUpload: data.files?.length > 1 || false,
+      fileCount: data.files?.length || 1,
+      files: data.files || [],
     };
 
     setTagData(tagData);
@@ -51,34 +43,8 @@ export default function CreateTagPage() {
     }, 800);
   };
 
-  const handleMediaTypeSelected = (
-    type: "image" | "video" | "audio" | "text"
-  ) => {
-    setSelectedMediaType(type);
-    setShowMediaTypeSelection(false);
-    setShowUploadModal(true);
-  };
-
-  const handleUrlImport = (
-    url: string,
-    mediaType: "image" | "video" | "audio" | "text"
-  ) => {
-    console.log("URL import:", url, "Media type:", mediaType);
-    setImportedUrl(url);
-    setSelectedMediaType(mediaType);
-    setShowMediaTypeSelection(false);
-    setShowUploadModal(true);
-  };
-
-  const handleCloseMediaTypeSelection = () => {
-    setShowMediaTypeSelection(false);
+  const handleCancel = () => {
     router.push("/");
-  };
-
-  const handleCloseUploadModal = () => {
-    setShowUploadModal(false);
-    setShowMediaTypeSelection(true);
-    setImportedUrl(null);
   };
 
   if (isLoading) {
@@ -96,11 +62,9 @@ export default function CreateTagPage() {
   return (
     <AuthenticatedLayout>
       <main className="min-h-screen bg-[#181A1D]">
-        <SiteNavbar />
-
-        {/* Close Button - Positioned just below navbar on top-right */}
+        {/* Close Button - Positioned on top-right */}
         <button
-          onClick={() => router.push("/")}
+          onClick={handleCancel}
           className="fixed top-20 right-4 w-10 h-10 bg-[#3A3D45] rounded-lg flex items-center justify-center hover:bg-[#4A4D55] transition-colors z-50"
         >
           <X className="w-5 h-5 text-white" />
@@ -170,31 +134,19 @@ export default function CreateTagPage() {
             </div>
           </div>
 
-          {/* Media Type Selection Modal */}
-          <MediaTypeSelectionModal
-            isOpen={showMediaTypeSelection}
-            onClose={handleCloseMediaTypeSelection}
-            onMediaTypeSelected={handleMediaTypeSelected}
-            onUrlImport={handleUrlImport}
-          />
-
-          {/* Tag New Media Modal with Transition */}
-          {showUploadModal && (
-            <div
-              className={`transition-all duration-500 ${
-                isTransitioning
-                  ? "opacity-0 transform scale-95"
-                  : "opacity-100 transform scale-100"
-              }`}
-            >
-              <TagNewMediaModal
-                onCancel={handleCloseUploadModal}
-                onContinue={handleContinue}
-                mediaType={selectedMediaType}
-                importedUrl={importedUrl}
-              />
-            </div>
-          )}
+          {/* Tag New Media Form with Transition */}
+          <div
+            className={`transition-all duration-500 ${
+              isTransitioning
+                ? "opacity-0 transform scale-95"
+                : "opacity-100 transform scale-100"
+            }`}
+          >
+            <TagNewMediaForm
+              onCancel={handleCancel}
+              onContinue={handleContinue}
+            />
+          </div>
         </div>
       </main>
       <Toaster

@@ -14,8 +14,6 @@ interface MediaGridProps {
 }
 
 export function MediaGrid({ items = [] }: MediaGridProps) {
-  console.log('MediaGrid received items:', items, 'Length:', items.length);
-  
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg p-8 text-center text-white">
