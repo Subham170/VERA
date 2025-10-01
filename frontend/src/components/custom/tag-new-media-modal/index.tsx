@@ -7,9 +7,13 @@ import { useState } from "react";
 
 interface TagNewMediaModalProps {
   onCancel?: () => void;
+  onContinue?: () => void;
 }
 
-export default function TagNewMediaModal({ onCancel }: TagNewMediaModalProps) {
+export default function TagNewMediaModal({
+  onCancel,
+  onContinue,
+}: TagNewMediaModalProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [fileName, setFileName] = useState("");
 
@@ -190,6 +194,7 @@ export default function TagNewMediaModal({ onCancel }: TagNewMediaModalProps) {
               Cancel
             </Button>
             <Button
+              onClick={onContinue}
               className="bg-blue-600 text-white hover:bg-blue-700 px-6 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={selectedFiles.length === 0 || !fileName.trim()}
             >
