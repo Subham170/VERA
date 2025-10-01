@@ -19,7 +19,8 @@ export default function CreateTagPage() {
     }
   }, [isAuthorized, isLoading, router]);
 
-  const handleContinue = () => {
+  const handleContinue = (data: any) => {
+    console.log("Form data:", data);
     setIsTransitioning(true);
     // Add a small delay for the transition animation
     setTimeout(() => {

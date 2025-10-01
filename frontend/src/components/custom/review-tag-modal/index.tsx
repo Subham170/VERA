@@ -189,7 +189,7 @@ export default function ReviewTagModal({
               <Button
                 onClick={onPayFees}
                 className="bg-blue-600 text-white hover:bg-blue-700 px-8 py-3 transition-all duration-200 shadow-lg hover:shadow-xl"
-                disabled={!isSliderEnabled || isLoading}
+                disabled={isLoading}
               >
                 <Wallet className="w-4 h-4 mr-2" />
                 {isLoading ? "Processing..." : "Pay fees"}
