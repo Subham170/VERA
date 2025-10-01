@@ -24,7 +24,7 @@ function LogoMark() {
         className="size-6 rounded-full bg-brand/20 ring-1 ring-brand/30 grid place-items-center group-hover:bg-brand/30 transition-colors duration-200"
       >
         <img
-          src="images/logo.png"
+          src="/images/logo.png"
           alt="V.E.R.A. logo"
           className="h-6 w-auto md:h-6 group-hover:scale-110 transition-transform duration-200"
         />
@@ -69,8 +69,13 @@ export default function SiteNavbar() {
   const handleCreateTag = () => {
     router.push("/create-tag");
   };
+
+  const handleProfile = () => {
+    router.push("/profile");
+  };
+
   return (
-    <header className="sticky top-0 z-40 w-full text-white pt-4 bg-[#181A1D] shadow-lg backdrop-blur-sm border-b border-gray-800/50">
+    <header className="sticky top-0 z-40 w-full text-white py-2 bg-[#181A1D] shadow-lg backdrop-blur-sm border-b border-gray-800/50">
       <nav className="mx-auto flex max-w-screen-2xl items-center justify-between gap-3 px-4 py-3">
         <LogoMark />
 
@@ -119,12 +124,14 @@ export default function SiteNavbar() {
             <Bell className="size-5 text-gray-400 hover:text-white transition-colors duration-200" />
           </button>
 
+          <button onClick={handleProfile} aria-label="Profile">
           <Avatar className="size-9 ring-1 ring-gray-600 hover:ring-blue-400/50 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md">
             <AvatarImage src="/avatar-placeholder.png" alt="Your profile" />
             <AvatarFallback className="bg-[#2E3137] text-white hover:bg-[#3A3D45] transition-colors duration-200">
               YO
             </AvatarFallback>
           </Avatar>
+          </button>
         </div>
       </nav>
     </header>

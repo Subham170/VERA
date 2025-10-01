@@ -3,7 +3,7 @@ import { TagDataProvider } from "@/context/TagDataContext";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
+import SiteNavbar from "@/components/custom/layouts/navbar";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -30,6 +30,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <AuthProvider>
+        <SiteNavbar />
           <TagDataProvider>{children}</TagDataProvider>
         </AuthProvider>
       </body>
