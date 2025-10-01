@@ -28,6 +28,7 @@ const createFormSchema = (hasImportedUrl: boolean) =>
       .string()
       .min(1, "File name is required")
       .min(3, "File name must be at least 3 characters"),
+    description: z.string().optional(),
   });
 
 type FormData = z.infer<ReturnType<typeof createFormSchema>>;
@@ -52,6 +53,7 @@ export default function TagNewMediaModal({
   const [uploadStatus, setUploadStatus] = useState<{
     [key: string]: "uploading" | "completed" | "paused" | "error";
   }>({});
+  const [isBulkUpload, setIsBulkUpload] = useState(false);
 
   const {
     register,
@@ -65,10 +67,12 @@ export default function TagNewMediaModal({
     defaultValues: {
       files: [],
       fileName: "",
+      description: "",
     },
   });
 
   const fileName = watch("fileName");
+  const description = watch("description");
 
   const getAcceptedFileTypes = () => {
     switch (mediaType) {
@@ -240,6 +244,8 @@ export default function TagNewMediaModal({
         ...data,
         importedUrl: importedUrl || undefined,
         mediaType: mediaType || undefined,
+        isBulkUpload: isBulkUpload,
+        fileCount: selectedFiles.length,
       };
       onContinue(formData as any);
     }
@@ -271,7 +277,9 @@ export default function TagNewMediaModal({
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-3">
                 <h1 className="text-2xl font-bold text-white">
-                  Upload {getMediaTypeDisplayName()}
+                  {isBulkUpload
+                    ? `Bulk Upload ${getMediaTypeDisplayName()}`
+                    : `Upload ${getMediaTypeDisplayName()}`}
                 </h1>
                 {mediaType && (
                   <div className="flex items-center space-x-2 px-3 py-1 bg-blue-500/20 rounded-full border border-blue-500/30">
@@ -282,13 +290,32 @@ export default function TagNewMediaModal({
                   </div>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={onCancel}
-                className="w-8 h-8 bg-[#3A3D45] rounded-lg flex items-center justify-center hover:bg-[#4A4D55] transition-colors"
-              >
-                <X className="w-4 h-4 text-white" />
-              </button>
+              <div className="flex items-center space-x-3">
+                {/* Bulk Upload Toggle */}
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-400">Bulk Upload</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsBulkUpload(!isBulkUpload)}
+                    className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${
+                      isBulkUpload ? "bg-blue-500" : "bg-gray-600"
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${
+                        isBulkUpload ? "translate-x-7" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="w-8 h-8 bg-[#3A3D45] rounded-lg flex items-center justify-center hover:bg-[#4A4D55] transition-colors"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
             </div>
 
             {/* Imported URL Section */}
@@ -331,7 +358,7 @@ export default function TagNewMediaModal({
                 <input
                   id="file-upload"
                   type="file"
-                  multiple
+                  multiple={isBulkUpload}
                   accept={getAcceptedFileTypes()}
                   onChange={handleFileUpload}
                   className="hidden"
@@ -348,13 +375,13 @@ export default function TagNewMediaModal({
                   </div>
                   <div>
                     <p className="text-lg font-medium text-white mb-2">
-                      Drop your media here, or{" "}
-                      <span className="text-blue-400 cursor-pointer hover:text-blue-300">
-                        browse
-                      </span>
+                      {isBulkUpload
+                        ? "Drop your media files here, or browse to select multiple files"
+                        : "Drop your media here, or browse to select a file"}
                     </p>
                     <p className="text-sm text-gray-400">
                       Supports: {getMediaTypeDescription()}, Max size 10MB
+                      {isBulkUpload && " • Multiple files allowed"}
                     </p>
                   </div>
                 </div>
@@ -440,14 +467,17 @@ export default function TagNewMediaModal({
             {/* File Name Section */}
             <div className="mb-8">
               <h2 className="text-lg font-semibold text-white mb-2">
-                File name <span className="text-red-400">*</span>
+                {isBulkUpload ? "Collection name" : "File name"}{" "}
+                <span className="text-red-400">*</span>
               </h2>
 
               <div className="relative">
                 <input
                   {...register("fileName")}
                   type="text"
-                  placeholder="Enter file name"
+                  placeholder={
+                    isBulkUpload ? "Enter collection name" : "Enter file name"
+                  }
                   className={`w-full px-4 py-3 bg-[#3A3D45] border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-1 transition-all duration-200 ${
                     errors.fileName
                       ? "border-red-400 focus:border-red-300 focus:ring-red-400"
@@ -466,6 +496,45 @@ export default function TagNewMediaModal({
                 <p className="text-red-400 text-sm mt-2 flex items-center">
                   <span className="mr-1">⚠️</span>
                   {errors.fileName.message}
+                </p>
+              )}
+
+              {/* Bulk Upload Info */}
+              {isBulkUpload && selectedFiles.length > 0 && (
+                <p className="text-blue-400 text-sm mt-2">
+                  📁 {selectedFiles.length} file
+                  {selectedFiles.length !== 1 ? "s" : ""} selected for bulk
+                  upload
+                </p>
+              )}
+            </div>
+
+            {/* Description Section */}
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-white mb-2">
+                Description
+              </h2>
+              <div className="relative">
+                <textarea
+                  {...register("description")}
+                  rows={4}
+                  placeholder="Add a detailed description of your media"
+                  className={`w-full px-4 py-3 bg-[#3A3D45] border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-1 transition-all duration-200 resize-none ${
+                    errors.description
+                      ? "border-red-400 focus:border-red-300 focus:ring-red-400"
+                      : "border-gray-600 focus:border-blue-400 focus:ring-blue-400"
+                  }`}
+                />
+                {description && !errors.description && (
+                  <div className="absolute right-3 top-3">
+                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  </div>
+                )}
+              </div>
+              {errors.description && (
+                <p className="text-red-400 text-sm mt-2 flex items-center">
+                  <span className="mr-1">⚠️</span>
+                  {errors.description.message}
                 </p>
               )}
             </div>

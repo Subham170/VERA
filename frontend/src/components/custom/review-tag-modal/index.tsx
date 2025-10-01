@@ -9,12 +9,24 @@ interface ReviewTagModalProps {
   onCancel?: () => void;
   onPayFees?: () => void;
   isLoading?: boolean;
+  isBulkUpload?: boolean;
+  fileCount?: number;
+  collectionName?: string;
+  fileName?: string;
+  description?: string;
+  mediaType?: string;
 }
 
 export default function ReviewTagModal({
   onCancel,
   onPayFees,
   isLoading = false,
+  isBulkUpload = false,
+  fileCount = 1,
+  collectionName = "My Media",
+  fileName = "My Media",
+  description = "A sample media description",
+  mediaType = "image",
 }: ReviewTagModalProps) {
   const [isSliderEnabled, setIsSliderEnabled] = useState(false);
 
@@ -25,13 +37,16 @@ export default function ReviewTagModal({
         <CardContent className="p-8">
           {/* Title */}
           <h1 className="text-3xl font-bold text-white mb-4">
-            Review your media tag
+            {isBulkUpload
+              ? "Review your bulk media collection"
+              : "Review your media tag"}
           </h1>
 
           {/* Description */}
           <p className="text-gray-300 text-base mb-8">
-            Check out your media tag preview and continue once your happy with
-            it
+            {isBulkUpload
+              ? `Review your bulk media collection (${fileCount} files) and continue once you're happy with it`
+              : "Check out your media tag preview and continue once your happy with it"}
           </p>
 
           {/* Main Content Grid */}
@@ -61,15 +76,19 @@ export default function ReviewTagModal({
                   {/* File Info */}
                   <div className="space-y-2">
                     <h3 className="text-white font-semibold">
-                      BrandTripTalk.jpg
+                      {isBulkUpload ? collectionName : fileName}
                     </h3>
-                    <p className="text-blue-400 text-sm">@JordanLeex</p>
+                    <p className="text-blue-400 text-sm">
+                      {isBulkUpload
+                        ? `${fileCount} files in collection`
+                        : `@${mediaType} media`}
+                    </p>
                   </div>
 
                   {/* View Tag Button */}
                   <Button className="w-full bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200">
                     <Eye className="w-4 h-4 mr-2" />
-                    View Tag
+                    {isBulkUpload ? "View Collection" : "View Tag"}
                   </Button>
                 </div>
               </CardContent>
@@ -107,9 +126,7 @@ export default function ReviewTagModal({
                   <div>
                     <p className="text-gray-400 text-sm mb-2">Description</p>
                     <p className="text-gray-300 text-sm leading-relaxed">
-                      Influencer Jordan Lee speaks at a luxurious retreat,
-                      hosted by Ladi Travels, sharing insights on sustainable
-                      living and eco-friendly choices.
+                      {description || "No description provided"}
                     </p>
                   </div>
 

@@ -10,6 +10,7 @@ interface SuccessPopupProps {
   blockchainId?: string;
   onViewTaggedMedia?: () => void;
   onShare?: () => void;
+  onCreateNewTag?: () => void;
 }
 
 export default function SuccessPopup({
@@ -18,16 +19,25 @@ export default function SuccessPopup({
   blockchainId = "0x000...0000",
   onViewTaggedMedia,
   onShare,
+  onCreateNewTag,
 }: SuccessPopupProps) {
   if (!isOpen) return null;
 
+  const handleCloseClick = () => {
+    if (onCreateNewTag) {
+      onCreateNewTag();
+    } else {
+      onClose();
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <Card className="bg-[#2A2D35] border-[#3A3D45] shadow-2xl w-full max-w-md mx-4">
+      <Card className="bg-[#2A2D35] border-[#3A3D45] shadow-2xl w-full max-w-md mx-4 relative">
         <CardContent className="p-6">
-          {/* Close Button */}
+          {/* Close Button - Inside Modal */}
           <button
-            onClick={onClose}
+            onClick={handleCloseClick}
             className="absolute top-4 right-4 w-8 h-8 bg-[#3A3D45] rounded-lg flex items-center justify-center hover:bg-[#4A4D55] transition-colors"
           >
             <X className="w-4 h-4 text-white" />

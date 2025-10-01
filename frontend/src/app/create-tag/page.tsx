@@ -5,6 +5,7 @@ import SiteNavbar from "@/components/custom/layouts/navbar";
 import MediaTypeSelectionModal from "@/components/custom/media-type-selection-modal";
 import TagNewMediaModal from "@/components/custom/tag-new-media-modal";
 import { useAuth } from "@/context/AuthContext";
+import { useTagData } from "@/context/TagDataContext";
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -12,6 +13,7 @@ import { Toaster } from "react-hot-toast";
 
 export default function CreateTagPage() {
   const { isAuthorized, isLoading } = useAuth();
+  const { setTagData } = useTagData();
   const router = useRouter();
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showMediaTypeSelection, setShowMediaTypeSelection] = useState(true);
@@ -30,6 +32,19 @@ export default function CreateTagPage() {
   const handleContinue = (data: any) => {
     console.log("Form data:", data);
     setIsTransitioning(true);
+
+    // Store data in context
+    const tagData = {
+      fileName: data.fileName,
+      description: data.description || "",
+      mediaType: selectedMediaType || "image",
+      isBulkUpload: data.isBulkUpload || false,
+      fileCount: data.fileCount || 1,
+      importedUrl: data.importedUrl || null,
+    };
+
+    setTagData(tagData);
+
     // Add a small delay for the transition animation
     setTimeout(() => {
       router.push("/review-tag");
