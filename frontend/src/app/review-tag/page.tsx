@@ -1,8 +1,10 @@
 "use client";
 
+import CancelConfirmationPopup from "@/components/custom/cancel-confirmation-popup";
 import AuthenticatedLayout from "@/components/custom/layouts/authenticated-layout";
 import SiteNavbar from "@/components/custom/layouts/navbar";
 import ReviewTagModal from "@/components/custom/review-tag-modal";
+import SuccessPopup from "@/components/custom/success-popup";
 import { useAuth } from "@/context/AuthContext";
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -12,6 +14,9 @@ export default function ReviewTagPage() {
   const { isAuthorized, isLoading } = useAuth();
   const router = useRouter();
   const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthorized) {
@@ -26,6 +31,45 @@ export default function ReviewTagPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, []);
+
+  // Handle payment processing
+  const handlePayFees = () => {
+    setIsProcessingPayment(true);
+    // Simulate payment processing
+    setTimeout(() => {
+      setIsProcessingPayment(false);
+      setShowSuccessPopup(true);
+    }, 3000);
+  };
+
+  // Handle cancel actions
+  const handleCancel = () => {
+    setShowCancelConfirmation(true);
+  };
+
+  const handleCloseButton = () => {
+    setShowCancelConfirmation(true);
+  };
+
+  const handleConfirmCancel = () => {
+    setShowCancelConfirmation(false);
+    router.push("/");
+  };
+
+  const handleKeepEditing = () => {
+    setShowCancelConfirmation(false);
+  };
+
+  // Handle success popup actions
+  const handleViewTaggedMedia = () => {
+    setShowSuccessPopup(false);
+    router.push("/");
+  };
+
+  const handleShare = () => {
+    // Implement share functionality
+    console.log("Share functionality");
+  };
 
   if (isLoading) {
     return (
@@ -46,7 +90,7 @@ export default function ReviewTagPage() {
 
         {/* Close Button - Positioned just below navbar on top-right */}
         <button
-          onClick={() => router.push("/")}
+          onClick={handleCloseButton}
           className="fixed top-20 right-4 w-10 h-10 bg-[#3A3D45] rounded-lg flex items-center justify-center hover:bg-[#4A4D55] transition-colors z-50"
         >
           <X className="w-5 h-5 text-white" />
@@ -89,9 +133,29 @@ export default function ReviewTagPage() {
                 : "opacity-100 transform translate-y-0"
             }`}
           >
-            <ReviewTagModal onCancel={() => router.push("/create-tag")} />
+            <ReviewTagModal
+              onCancel={handleCancel}
+              onPayFees={handlePayFees}
+              isLoading={isProcessingPayment}
+            />
           </div>
         </div>
+
+        {/* Success Popup */}
+        <SuccessPopup
+          isOpen={showSuccessPopup}
+          onClose={() => setShowSuccessPopup(false)}
+          onViewTaggedMedia={handleViewTaggedMedia}
+          onShare={handleShare}
+        />
+
+        {/* Cancel Confirmation Popup */}
+        <CancelConfirmationPopup
+          isOpen={showCancelConfirmation}
+          onClose={() => setShowCancelConfirmation(false)}
+          onConfirmCancel={handleConfirmCancel}
+          onKeepEditing={handleKeepEditing}
+        />
       </main>
     </AuthenticatedLayout>
   );

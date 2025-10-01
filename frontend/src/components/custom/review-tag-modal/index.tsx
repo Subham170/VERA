@@ -7,9 +7,15 @@ import { useState } from "react";
 
 interface ReviewTagModalProps {
   onCancel?: () => void;
+  onPayFees?: () => void;
+  isLoading?: boolean;
 }
 
-export default function ReviewTagModal({ onCancel }: ReviewTagModalProps) {
+export default function ReviewTagModal({
+  onCancel,
+  onPayFees,
+  isLoading = false,
+}: ReviewTagModalProps) {
   const [isSliderEnabled, setIsSliderEnabled] = useState(false);
 
   return (
@@ -70,8 +76,24 @@ export default function ReviewTagModal({ onCancel }: ReviewTagModalProps) {
             </Card>
 
             {/* Right Card - Tag Details & Fees */}
-            <Card className="bg-[#3A3D45] border-[#4A4D55]">
+            <Card className="bg-[#3A3D45] border-[#4A4D55] relative">
               <CardContent className="p-6">
+                {/* Loading Overlay */}
+                {isLoading && (
+                  <div className="absolute inset-0 bg-[#3A3D45]/90 backdrop-blur-sm rounded-lg flex items-center justify-center z-10">
+                    <div className="flex flex-col items-center">
+                      {/* Animated Loading Spinner */}
+                      <div className="relative w-16 h-16 mb-4">
+                        <div className="absolute inset-0 border-4 border-blue-500/20 rounded-full"></div>
+                        <div className="absolute inset-0 border-4 border-transparent border-t-blue-500 border-r-green-500 rounded-full animate-spin"></div>
+                      </div>
+                      <p className="text-white text-sm">
+                        Processing payment...
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-6">
                   {/* Tag ID */}
                   <div>
@@ -165,11 +187,12 @@ export default function ReviewTagModal({ onCancel }: ReviewTagModalProps) {
 
               {/* Pay Fees Button */}
               <Button
+                onClick={onPayFees}
                 className="bg-blue-600 text-white hover:bg-blue-700 px-8 py-3 transition-all duration-200 shadow-lg hover:shadow-xl"
-                disabled={!isSliderEnabled}
+                disabled={!isSliderEnabled || isLoading}
               >
                 <Wallet className="w-4 h-4 mr-2" />
-                Pay fees
+                {isLoading ? "Processing..." : "Pay fees"}
               </Button>
             </div>
           </div>
