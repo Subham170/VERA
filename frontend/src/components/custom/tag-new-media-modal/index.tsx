@@ -3,32 +3,55 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FileText, Image, Music, Trash2, Upload, Video } from "lucide-react";
+import {
+  Check,
+  FileText,
+  Image,
+  Info,
+  Music,
+  Pause,
+  Upload,
+  Video,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-// Validation schema
-const formSchema = z.object({
-  files: z.array(z.instanceof(File)).min(1, "Please upload at least one file"),
-  fileName: z
-    .string()
-    .min(1, "File name is required")
-    .min(3, "File name must be at least 3 characters"),
-});
+// Validation schema - will be created dynamically based on whether URL is imported
+const createFormSchema = (hasImportedUrl: boolean) =>
+  z.object({
+    files: hasImportedUrl
+      ? z.array(z.instanceof(File)).optional()
+      : z.array(z.instanceof(File)).min(1, "Please upload at least one file"),
+    fileName: z
+      .string()
+      .min(1, "File name is required")
+      .min(3, "File name must be at least 3 characters"),
+  });
 
-type FormData = z.infer<typeof formSchema>;
+type FormData = z.infer<ReturnType<typeof createFormSchema>>;
 
 interface TagNewMediaModalProps {
   onCancel?: () => void;
   onContinue?: (data: FormData) => void;
+  mediaType?: "image" | "video" | "audio" | "text" | null;
+  importedUrl?: string | null;
 }
 
 export default function TagNewMediaModal({
   onCancel,
   onContinue,
+  mediaType,
+  importedUrl,
 }: TagNewMediaModalProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<{
+    [key: string]: number;
+  }>({});
+  const [uploadStatus, setUploadStatus] = useState<{
+    [key: string]: "uploading" | "completed" | "paused" | "error";
+  }>({});
 
   const {
     register,
@@ -37,7 +60,7 @@ export default function TagNewMediaModal({
     watch,
     formState: { errors, isValid },
   } = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(createFormSchema(!!importedUrl)),
     mode: "onChange",
     defaultValues: {
       files: [],
@@ -47,12 +70,98 @@ export default function TagNewMediaModal({
 
   const fileName = watch("fileName");
 
+  const getAcceptedFileTypes = () => {
+    switch (mediaType) {
+      case "image":
+        return ".jpg,.jpeg,.png,.gif,.svg,.webp,.bmp,.ico";
+      case "video":
+        return ".mp4,.webm,.mov,.avi,.mkv,.flv,.wmv,.m4v";
+      case "audio":
+        return ".mp3,.wav,.aac,.flac,.ogg,.m4a,.wma";
+      case "text":
+        return ".txt,.pdf,.doc,.docx,.rtf,.md";
+      default:
+        return ".jpg,.jpeg,.png,.gif,.svg,.mp4,.webm,.wav,.aac,.mp3,.txt,.pdf,.doc,.docx";
+    }
+  };
+
+  const getMediaTypeDescription = () => {
+    switch (mediaType) {
+      case "image":
+        return "JPG, PNG, GIF, SVG, WebP, BMP, ICO";
+      case "video":
+        return "MP4, WEBM, MOV, AVI, MKV, FLV, WMV, M4V";
+      case "audio":
+        return "MP3, WAV, AAC, FLAC, OGG, M4A, WMA";
+      case "text":
+        return "TXT, PDF, DOC, DOCX, RTF, MD";
+      default:
+        return "JPG, PNG, GIF, SVG, MP4, WEBM, WAV, AAC, MP3, TXT, PDF, DOC, DOCX";
+    }
+  };
+
+  const getMediaTypeDisplayName = () => {
+    switch (mediaType) {
+      case "image":
+        return "Image";
+      case "video":
+        return "Video";
+      case "audio":
+        return "Audio";
+      case "text":
+        return "Text";
+      default:
+        return "Media";
+    }
+  };
+
+  const getMediaTypeIcon = () => {
+    switch (mediaType) {
+      case "image":
+        return <Image className="w-5 h-5" />;
+      case "video":
+        return <Video className="w-5 h-5" />;
+      case "audio":
+        return <Music className="w-5 h-5" />;
+      case "text":
+        return <FileText className="w-5 h-5" />;
+      default:
+        return <Upload className="w-5 h-5" />;
+    }
+  };
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files) {
       const fileArray = Array.from(files);
       setSelectedFiles(fileArray);
       setValue("files", fileArray, { shouldValidate: true });
+
+      // Simulate upload progress for each file
+      fileArray.forEach((file) => {
+        const fileName = file.name;
+        setUploadStatus((prev) => ({ ...prev, [fileName]: "uploading" }));
+        setUploadProgress((prev) => ({ ...prev, [fileName]: 0 }));
+
+        // Simulate upload progress
+        const interval = setInterval(() => {
+          setUploadProgress((prev) => {
+            const currentProgress = prev[fileName] || 0;
+            if (currentProgress >= 100) {
+              clearInterval(interval);
+              setUploadStatus((prevStatus) => ({
+                ...prevStatus,
+                [fileName]: "completed",
+              }));
+              return { ...prev, [fileName]: 100 };
+            }
+            return {
+              ...prev,
+              [fileName]: currentProgress + Math.random() * 20,
+            };
+          });
+        }, 200);
+      });
     }
   };
 
@@ -63,6 +172,32 @@ export default function TagNewMediaModal({
       const fileArray = Array.from(files);
       setSelectedFiles(fileArray);
       setValue("files", fileArray, { shouldValidate: true });
+
+      // Simulate upload progress for each file
+      fileArray.forEach((file) => {
+        const fileName = file.name;
+        setUploadStatus((prev) => ({ ...prev, [fileName]: "uploading" }));
+        setUploadProgress((prev) => ({ ...prev, [fileName]: 0 }));
+
+        // Simulate upload progress
+        const interval = setInterval(() => {
+          setUploadProgress((prev) => {
+            const currentProgress = prev[fileName] || 0;
+            if (currentProgress >= 100) {
+              clearInterval(interval);
+              setUploadStatus((prevStatus) => ({
+                ...prevStatus,
+                [fileName]: "completed",
+              }));
+              return { ...prev, [fileName]: 100 };
+            }
+            return {
+              ...prev,
+              [fileName]: currentProgress + Math.random() * 20,
+            };
+          });
+        }, 200);
+      });
     }
   };
 
@@ -71,14 +206,42 @@ export default function TagNewMediaModal({
   };
 
   const removeFile = (index: number) => {
+    const fileToRemove = selectedFiles[index];
     const newFiles = selectedFiles.filter((_, i) => i !== index);
     setSelectedFiles(newFiles);
     setValue("files", newFiles, { shouldValidate: true });
+
+    // Clean up progress and status for removed file
+    if (fileToRemove) {
+      setUploadProgress((prev) => {
+        const newProgress = { ...prev };
+        delete newProgress[fileToRemove.name];
+        return newProgress;
+      });
+      setUploadStatus((prev) => {
+        const newStatus = { ...prev };
+        delete newStatus[fileToRemove.name];
+        return newStatus;
+      });
+    }
+  };
+
+  const togglePause = (fileName: string) => {
+    setUploadStatus((prev) => ({
+      ...prev,
+      [fileName]: prev[fileName] === "paused" ? "uploading" : "paused",
+    }));
   };
 
   const onSubmit = (data: FormData) => {
     if (onContinue) {
-      onContinue(data);
+      // If URL is imported, add it to the form data
+      const formData = {
+        ...data,
+        importedUrl: importedUrl || undefined,
+        mediaType: mediaType || undefined,
+      };
+      onContinue(formData as any);
     }
   };
 
@@ -99,41 +262,64 @@ export default function TagNewMediaModal({
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       {/* Enhanced Modal Container */}
       <Card className="bg-[#2A2D35] border-[#3A3D45] shadow-2xl">
         <CardContent className="p-8">
           <form onSubmit={handleSubmit(onSubmit)}>
-            {/* Title */}
-            <h1 className="text-3xl font-bold text-white mb-4">
-              Tag New Media
-            </h1>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <h1 className="text-2xl font-bold text-white">
+                  Upload {getMediaTypeDisplayName()}
+                </h1>
+                {mediaType && (
+                  <div className="flex items-center space-x-2 px-3 py-1 bg-blue-500/20 rounded-full border border-blue-500/30">
+                    {getMediaTypeIcon()}
+                    <span className="text-blue-400 text-sm font-medium">
+                      {getMediaTypeDisplayName()}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="w-8 h-8 bg-[#3A3D45] rounded-lg flex items-center justify-center hover:bg-[#4A4D55] transition-colors"
+              >
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
 
-            {/* Description */}
-            <p className="text-gray-300 text-base mb-2">
-              You can now upload your media and get it tagged. Remember to
-              upload using the correct file types.
-            </p>
-
-            {/* Required Fields Note */}
-            <p className="text-blue-400 text-sm mb-8">*Required fields</p>
+            {/* Imported URL Section */}
+            {importedUrl && (
+              <div className="mb-8">
+                <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
+                      <Check className="w-5 h-5 text-green-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-green-400 font-semibold">
+                        Media Imported Successfully
+                      </h3>
+                      <p className="text-gray-300 text-sm truncate">
+                        {importedUrl}
+                      </p>
+                      <p className="text-green-400 text-xs mt-1">
+                        {getMediaTypeDisplayName()} media ready for tagging
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Upload Media Section */}
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-white mb-2">
-                Upload Media <span className="text-red-400">*</span>
-              </h2>
-
-              <p className="text-gray-400 text-sm mb-4">
-                Image, Video or Audio
-                <br />
-                file types supported: JPG, PNG, GIF, SVG, MP4, WEBM, WAV, AAC,
-                MP3, Max size 10MB
-              </p>
-
+            <div className="mb-8">
               {/* Enhanced File Dropzone */}
               <div
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-all duration-300 cursor-pointer group hover:bg-[#2A2D35]/50 ${
+                className={`border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 cursor-pointer group hover:bg-[#2A2D35]/50 ${
                   errors.files
                     ? "border-red-400 hover:border-red-300"
                     : "border-gray-500 hover:border-blue-400"
@@ -146,70 +332,32 @@ export default function TagNewMediaModal({
                   id="file-upload"
                   type="file"
                   multiple
-                  accept=".jpg,.jpeg,.png,.gif,.svg,.mp4,.webm,.wav,.aac,.mp3"
+                  accept={getAcceptedFileTypes()}
                   onChange={handleFileUpload}
                   className="hidden"
                 />
 
-                {selectedFiles.length > 0 ? (
-                  <div className="text-white space-y-4">
-                    <div className="flex items-center justify-center space-x-2 mb-4">
-                      <Upload className="w-6 h-6 text-blue-400" />
-                      <p className="text-lg font-medium">
-                        {selectedFiles.length} file(s) selected
-                      </p>
-                    </div>
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {selectedFiles.map((file, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center space-x-3 p-3 bg-[#3A3D45] rounded-lg hover:bg-[#4A4D55] transition-colors group"
-                        >
-                          <div className="text-blue-400">
-                            {getFileIcon(file)}
-                          </div>
-                          <div className="flex-1 text-left">
-                            <p className="text-sm font-medium text-white truncate">
-                              {file.name}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {formatFileSize(file.size)}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => removeFile(index)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded"
-                          >
-                            <Trash2 className="w-4 h-4 text-red-400" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex justify-center">
-                      <div className="w-16 h-16 bg-[#3A3D45] rounded-full flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
-                        <Upload className="w-8 h-8 text-gray-400 group-hover:text-blue-400 transition-colors" />
+                <div className="space-y-6">
+                  <div className="flex justify-center">
+                    <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center group-hover:bg-blue-500/30 transition-colors">
+                      <div className="flex space-x-1">
+                        <Image className="w-8 h-8 text-blue-400" />
+                        <Image className="w-8 h-8 text-blue-400 -ml-2" />
                       </div>
                     </div>
-                    <div>
-                      <p className="text-lg font-medium text-white mb-2">
-                        Drop files here or click to upload
-                      </p>
-                      <p className="text-sm text-gray-400 mb-4">
-                        Supports images, videos, and audio files
-                      </p>
-                      <Button
-                        variant="outline"
-                        className="bg-[#3A3D45] border-gray-600 text-white hover:bg-[#4A4D55] hover:border-gray-500 transition-colors"
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        Add files
-                      </Button>
-                    </div>
                   </div>
-                )}
+                  <div>
+                    <p className="text-lg font-medium text-white mb-2">
+                      Drop your media here, or{" "}
+                      <span className="text-blue-400 cursor-pointer hover:text-blue-300">
+                        browse
+                      </span>
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      Supports: {getMediaTypeDescription()}, Max size 10MB
+                    </p>
+                  </div>
+                </div>
               </div>
 
               {/* File Upload Error Message */}
@@ -220,6 +368,74 @@ export default function TagNewMediaModal({
                 </p>
               )}
             </div>
+
+            {/* File Upload Progress List */}
+            {selectedFiles.length > 0 && (
+              <div className="mb-8 space-y-4">
+                {selectedFiles.map((file, index) => {
+                  const progress = uploadProgress[file.name] || 0;
+                  const status = uploadStatus[file.name] || "uploading";
+
+                  return (
+                    <div
+                      key={index}
+                      className="flex items-center space-x-4 p-4 bg-[#3A3D45] rounded-lg"
+                    >
+                      {/* File Thumbnail */}
+                      <div className="w-12 h-12 bg-gradient-to-br from-gray-600 to-gray-800 rounded-lg flex items-center justify-center">
+                        {getFileIcon(file)}
+                      </div>
+
+                      {/* File Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {formatFileSize(file.size)}
+                        </p>
+
+                        {/* Progress Bar */}
+                        <div className="mt-2">
+                          <div className="w-full bg-gray-600 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full transition-all duration-300 ${
+                                status === "completed"
+                                  ? "bg-green-500"
+                                  : "bg-blue-500"
+                              }`}
+                              style={{ width: `${Math.min(progress, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Status Icons */}
+                      <div className="flex items-center space-x-2">
+                        {status === "completed" ? (
+                          <Check className="w-5 h-5 text-green-400" />
+                        ) : status === "paused" ? (
+                          <Pause className="w-5 h-5 text-yellow-400" />
+                        ) : (
+                          <button
+                            onClick={() => togglePause(file.name)}
+                            className="p-1 hover:bg-gray-600 rounded transition-colors"
+                          >
+                            <Pause className="w-4 h-4 text-gray-400" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => removeFile(index)}
+                          className="p-1 hover:bg-red-500/20 rounded transition-colors"
+                        >
+                          <X className="w-4 h-4 text-red-400" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* File Name Section */}
             <div className="mb-8">
@@ -254,23 +470,30 @@ export default function TagNewMediaModal({
               )}
             </div>
 
-            {/* Enhanced Action Buttons */}
-            <div className="flex justify-end space-x-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onCancel}
-                className="bg-transparent border-gray-600 text-white hover:bg-[#3A3D45] hover:border-gray-500 transition-all duration-200"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-blue-600 text-white hover:bg-blue-700 px-6 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!isValid}
-              >
-                Continue
-              </Button>
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-6 border-t border-gray-600">
+              <div className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 cursor-pointer">
+                <Info className="w-4 h-4" />
+                <span className="text-sm">Help Centre</span>
+              </div>
+
+              <div className="flex space-x-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onCancel}
+                  className="bg-transparent border-blue-400 text-blue-400 hover:bg-blue-400/10 hover:border-blue-300 transition-all duration-200"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-blue-600 text-white hover:bg-blue-700 px-6 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!isValid}
+                >
+                  Done
+                </Button>
+              </div>
             </div>
           </form>
         </CardContent>
