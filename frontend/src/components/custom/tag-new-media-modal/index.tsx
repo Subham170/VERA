@@ -5,7 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FileText, Image, Music, Trash2, Upload, Video } from "lucide-react";
 import { useState } from "react";
 
-export default function TagNewMediaModal() {
+interface TagNewMediaModalProps {
+  onCancel?: () => void;
+}
+
+export default function TagNewMediaModal({ onCancel }: TagNewMediaModalProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [fileName, setFileName] = useState("");
 
@@ -180,6 +184,7 @@ export default function TagNewMediaModal() {
           <div className="flex justify-end space-x-4">
             <Button
               variant="outline"
+              onClick={onCancel}
               className="bg-transparent border-gray-600 text-white hover:bg-[#3A3D45] hover:border-gray-500 transition-all duration-200"
             >
               Cancel

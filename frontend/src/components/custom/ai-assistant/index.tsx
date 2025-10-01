@@ -1,11 +1,13 @@
 "use client";
 
 import { HelpCircle, Mic, Send } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function AIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const chatRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const handleSendMessage = () => {
     if (message.trim()) {
@@ -22,11 +24,36 @@ export default function AIAssistant() {
     }
   };
 
+  // Handle click outside to close
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        chatRef.current &&
+        !chatRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
   return (
     <>
       {/* AI Assistant Chat Bubble */}
       {isOpen && (
-        <div className="fixed bottom-20 right-4 w-80 bg-[#2A2D35] rounded-lg shadow-2xl border border-[#3A3D45] z-50 animate-in slide-in-from-bottom-2 duration-300">
+        <div
+          ref={chatRef}
+          className="fixed bottom-20 right-4 w-80 bg-[#2A2D35] rounded-lg shadow-2xl border border-[#3A3D45] z-50 animate-in slide-in-from-bottom-2 duration-300"
+        >
           {/* Chat Header */}
           <div className="p-4 border-b border-[#3A3D45]">
             <div className="flex items-center space-x-2">
@@ -93,6 +120,7 @@ export default function AIAssistant() {
 
           {/* Main Button */}
           <button
+            ref={buttonRef}
             onClick={() => setIsOpen(!isOpen)}
             className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center hover:bg-blue-600 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105"
           >

@@ -1,20 +1,27 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, Sparkles, Grid2X2, Bell } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Bell, Grid2X2, Search, Sparkles } from "lucide-react";
+import Link from "next/link";
 
 function LogoMark() {
   return (
     <div className="flex items-center gap-2">
-      <div aria-hidden className="size-6 rounded-full bg-brand/20 ring-1 ring-brand/30 grid place-items-center">
-      <img src="images/logo.png" alt="V.E.R.A. logo" className="h-6 w-auto md:h-6 hover:scale-110 transition-transform duration-200 cursor-pointer" /> 
+      <div
+        aria-hidden
+        className="size-6 rounded-full bg-brand/20 ring-1 ring-brand/30 grid place-items-center"
+      >
+        <img
+          src="images/logo.png"
+          alt="V.E.R.A. logo"
+          className="h-6 w-auto md:h-6 hover:scale-110 transition-transform duration-200 cursor-pointer"
+        />
       </div>
       <span className="font-medium tracking-tight">V.E.R.A.</span>
     </div>
-  )
+  );
 }
 
 function SearchInput() {
@@ -28,7 +35,9 @@ function SearchInput() {
       <input
         type="search"
         placeholder="Search for videos, images & audio"
-        className={cn("w-72 bg-transparent text-sm placeholder:text-muted-foreground/70 focus:outline-none")}
+        className={cn(
+          "w-72 bg-transparent text-sm placeholder:text-muted-foreground/70 focus:outline-none"
+        )}
         aria-label="Search for videos, images and audio"
       />
       <button
@@ -39,7 +48,7 @@ function SearchInput() {
         <Search className="size-3.5" />
       </button>
     </form>
-  )
+  );
 }
 
 export default function SiteNavbar() {
@@ -53,7 +62,10 @@ export default function SiteNavbar() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button className="rounded-md bg-blue-500 text-brand-foreground hover:bg-brand/90" size="sm">
+          <Button
+            className="rounded-md bg-blue-500 text-brand-foreground hover:bg-brand/90"
+            size="sm"
+          >
             Create tag
           </Button>
 
@@ -93,5 +105,5 @@ export default function SiteNavbar() {
         </div>
       </nav>
     </header>
-  )
+  );
 }

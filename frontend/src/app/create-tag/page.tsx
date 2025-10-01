@@ -32,13 +32,13 @@ export default function CreateTagPage() {
 
   return (
     <AuthenticatedLayout>
-      <main className="min-h-screen bg-[#181A1D] relative">
+      <main className="min-h-screen bg-[#181A1D]">
         <SiteNavbar />
 
-        {/* Close Button - Top Right Corner */}
+        {/* Close Button - Positioned just below navbar on top-right */}
         <button
           onClick={() => router.push("/")}
-          className="fixed top-4 right-4 w-10 h-10 bg-[#3A3D45] rounded-lg flex items-center justify-center hover:bg-[#4A4D55] transition-colors z-50"
+          className="fixed top-20 right-4 w-10 h-10 bg-[#3A3D45] rounded-lg flex items-center justify-center hover:bg-[#4A4D55] transition-colors z-50"
         >
           <X className="w-5 h-5 text-white" />
         </button>
@@ -73,7 +73,7 @@ export default function CreateTagPage() {
           </div>
 
           {/* Tag New Media Modal */}
-          <TagNewMediaModal />
+          <TagNewMediaModal onCancel={() => router.push("/")} />
         </div>
       </main>
     </AuthenticatedLayout>
