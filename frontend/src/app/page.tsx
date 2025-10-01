@@ -1,11 +1,12 @@
 "use client";
 
-import { useAuth } from "@/context/AuthContext";
-import WelcomeScreen from "@/components/custom/welcome-screen";
-import { useRouter } from "next/navigation";
 import AnnouncementBanner from "@/components/custom/announcement-banner";
 import HeroEmptyState from "@/components/custom/hero";
+import AuthenticatedLayout from "@/components/custom/layouts/authenticated-layout";
 import SiteNavbar from "@/components/custom/layouts/navbar";
+import WelcomeScreen from "@/components/custom/welcome-screen";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
   const { isAuthorized, isLoading, userData } = useAuth();
@@ -31,10 +32,12 @@ export default function Home() {
 
   // Show main app if user is authenticated
   return (
-    <main className="min-h-dvh bg-[#181A1D]">
-      <SiteNavbar />
-      <AnnouncementBanner />
-      <HeroEmptyState />
-    </main>
+    <AuthenticatedLayout>
+      <main className="min-h-dvh bg-[#181A1D]">
+        <SiteNavbar />
+        <AnnouncementBanner />
+        <HeroEmptyState />
+      </main>
+    </AuthenticatedLayout>
   );
 }
