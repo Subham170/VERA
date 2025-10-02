@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
 // User data interface
 export interface UserData {
@@ -13,10 +19,10 @@ interface AuthContextType {
   userData: UserData | null;
   isAuthorized: boolean;
   isLoading: boolean;
-  
+
   // Auth methods
   updateUserData: (data: Partial<UserData>) => void;
-  
+
   // Auth state
   token: string | null;
   refreshToken: string | null;
@@ -35,10 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Update user data
   const updateUserData = (data: Partial<UserData>) => {
-    if (userData) {
+    if (userData && typeof window !== "undefined") {
       const updatedUserData = { ...userData, ...data };
       setUserData(updatedUserData);
-      localStorage.setItem('userData', JSON.stringify(updatedUserData));
+      localStorage.setItem("userData", JSON.stringify(updatedUserData));
     }
   };
 
@@ -46,20 +52,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuth = () => {
       try {
-        const storedToken = localStorage.getItem('authToken');
-        const storedRefreshToken = localStorage.getItem('refreshToken');
-        const storedUserData = localStorage.getItem('userData');
+        // Check if we're on the client side
+        if (typeof window === "undefined") {
+          setIsLoading(false);
+          return;
+        }
+
+        const storedToken = localStorage.getItem("authToken");
+        const storedRefreshToken = localStorage.getItem("refreshToken");
+        const storedUserData = localStorage.getItem("userData");
 
         if (storedToken && storedUserData) {
           const userData = JSON.parse(storedUserData);
-          
+
           setToken(storedToken);
           setRefreshToken(storedRefreshToken);
           setUserData(userData);
           setIsAuthorized(true);
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
+        console.error("Auth check failed:", error);
       } finally {
         setIsLoading(false);
       }
@@ -78,18 +90,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshToken,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 // Custom hook to use auth context
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }

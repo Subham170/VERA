@@ -1,11 +1,16 @@
 "use client";
 
-import React from 'react';
-import Image from 'next/image';
 import { Button } from "@/components/ui/button";
-import { Download, Share2, MoreHorizontal, BadgeCheck } from "lucide-react";
+import { BadgeCheck, Download, MoreHorizontal, Share2 } from "lucide-react";
+import Image from "next/image";
 
-export default function TagPage({ params }: { params: { id: string } }) {
+export default async function TagPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
   return (
     <main className="min-h-screen bg-[#1A1A1A] text-white">
       <div className="max-w-7xl mx-auto p-6">
@@ -41,16 +46,17 @@ export default function TagPage({ params }: { params: { id: string } }) {
             {/* Description */}
             <div className="text-gray-300 leading-relaxed">
               <p>
-                Influencer Jordan Lee speaks at a luxurious retreat, hosted by Ladi Travels, 
-                sharing insights on sustainable living and eco-friendly choices.
+                Influencer Jordan Lee speaks at a luxurious retreat, hosted by
+                Ladi Travels, sharing insights on sustainable living and
+                eco-friendly choices.
               </p>
             </div>
 
             {/* Action Buttons */}
             <div className="flex gap-3">
               {/* Download Button */}
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="icon"
                 className="h-12 w-12 bg-[#2D2D30] border-gray-600 hover:bg-[#3D3D40] text-white rounded-lg"
               >
@@ -58,8 +64,8 @@ export default function TagPage({ params }: { params: { id: string } }) {
               </Button>
 
               {/* Share Button */}
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="icon"
                 className="h-12 w-12 bg-[#2D2D30] border-gray-600 hover:bg-[#3D3D40] text-white rounded-lg"
               >
@@ -67,8 +73,8 @@ export default function TagPage({ params }: { params: { id: string } }) {
               </Button>
 
               {/* More Options Button */}
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="icon"
                 className="h-12 w-12 bg-[#2D2D30] border-gray-600 hover:bg-[#3D3D40] text-white rounded-lg"
               >
