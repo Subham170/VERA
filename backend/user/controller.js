@@ -85,13 +85,27 @@ const getUserByEmail = async (req, res) => {
   }
 };
 
-// Create new user
+// Create new user with image uploads
 const createUser = async (req, res) => {
   try {
-    const user = new User(req.body);
+    const userData = { ...req.body };
+
+    // Handle profile image upload if provided
+    if (req.filesInfo && req.filesInfo.profile_img) {
+      userData.profile_img = req.filesInfo.profile_img.secure_url;
+    }
+
+    // Handle banner image upload if provided
+    if (req.filesInfo && req.filesInfo.banner_url) {
+      userData.banner_url = req.filesInfo.banner_url.secure_url;
+    }
+
+    const user = new User(userData);
     await user.save();
+
     res.status(201).json({
       status: "success",
+      message: "User created successfully",
       data: user,
     });
   } catch (error) {
@@ -102,21 +116,36 @@ const createUser = async (req, res) => {
   }
 };
 
-// Update user
+// Update user with image uploads
 const updateUser = async (req, res) => {
   try {
-    const user = await User.findByIdAndUpdate(req.params.id, req.body, {
+    const userData = { ...req.body };
+
+    // Handle profile image upload if provided
+    if (req.filesInfo && req.filesInfo.profile_img) {
+      userData.profile_img = req.filesInfo.profile_img.secure_url;
+    }
+
+    // Handle banner image upload if provided
+    if (req.filesInfo && req.filesInfo.banner_url) {
+      userData.banner_url = req.filesInfo.banner_url.secure_url;
+    }
+
+    const user = await User.findByIdAndUpdate(req.params.id, userData, {
       new: true,
       runValidators: true,
     }).select("-__v");
+
     if (!user) {
       return res.status(404).json({
         status: "error",
         message: "User not found",
       });
     }
+
     res.status(200).json({
       status: "success",
+      message: "User updated successfully",
       data: user,
     });
   } catch (error) {
