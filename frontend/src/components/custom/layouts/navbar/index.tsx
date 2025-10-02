@@ -1,13 +1,13 @@
 "use client";
 
+import { ProfileDropdown } from "@/components/custom/layouts/profile-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Bell, Grid2X2, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useRef } from "react";
-import { ProfileDropdown } from "@/components/custom/layouts/profile-dropdown";
+import { usePathname, useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 
 function LogoMark() {
   const router = useRouter();
@@ -67,8 +67,23 @@ function SearchInput() {
 
 export default function SiteNavbar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Define routes where search bar should be hidden
+  const hideSearchBarRoutes = [
+    "/create-tag",
+    "/review-tag",
+    "/login",
+    "/profile",
+    "/profile/edit",
+  ];
+
+  // Check if current route should hide search bar
+  const shouldHideSearchBar = hideSearchBarRoutes.some((route) =>
+    pathname.startsWith(route)
+  );
 
   const handleCreateTag = () => {
     router.push("/create-tag");
@@ -87,9 +102,11 @@ export default function SiteNavbar() {
       <nav className="mx-auto flex max-w-screen-2xl items-center justify-between gap-3 px-4 py-3">
         <LogoMark />
 
-        <div className="flex flex-1 items-center justify-center">
-          <SearchInput />
-        </div>
+        {!shouldHideSearchBar && (
+          <div className="flex flex-1 items-center justify-center">
+            <SearchInput />
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <Button
@@ -133,9 +150,9 @@ export default function SiteNavbar() {
           </button>
 
           <div className="relative">
-            <button 
+            <button
               ref={profileButtonRef}
-              onClick={handleProfileClick} 
+              onClick={handleProfileClick}
               aria-label="Profile"
             >
               <Avatar className="size-9 ring-1 ring-gray-600 hover:ring-blue-400/50 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md">
@@ -145,7 +162,7 @@ export default function SiteNavbar() {
                 </AvatarFallback>
               </Avatar>
             </button>
-            
+
             <ProfileDropdown
               isOpen={isProfileDropdownOpen}
               onClose={closeProfileDropdown}

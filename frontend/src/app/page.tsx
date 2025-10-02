@@ -2,13 +2,14 @@
 
 import AnnouncementBanner from "@/components/custom/announcement-banner";
 import HeroEmptyState from "@/components/custom/hero";
-import { MediaGrid } from "@/components/custom/profile/media-grid";
 import AuthenticatedLayout from "@/components/custom/layouts/authenticated-layout";
+import { MediaGrid } from "@/components/custom/profile/media-grid";
 import WelcomeScreen from "@/components/custom/welcome-screen";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
-export const mediaItems = [
+const mediaItems = [
   {
     id: "1",
     title: "BrandTripTalk.jpg",
@@ -37,6 +38,8 @@ export const mediaItems = [
 export default function Home() {
   const { isAuthorized, isLoading, userData } = useAuth();
   const router = useRouter();
+  const [showAnnouncementBanner, setShowAnnouncementBanner] = useState(true);
+  const [isAnimating, setIsAnimating] = useState(false);
 
   // Mock data - in a real app, this would come from an API or context
 
@@ -44,6 +47,19 @@ export default function Home() {
     // Navigate to login page
     router.push("/login");
   };
+
+  // Hide AnnouncementBanner after 3 seconds with animation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsAnimating(true);
+      // Hide the banner after animation completes
+      setTimeout(() => {
+        setShowAnnouncementBanner(false);
+      }, 500); // Animation duration
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   if (isLoading) {
     return (
@@ -62,13 +78,31 @@ export default function Home() {
   return (
     <AuthenticatedLayout>
       <main className="min-h-dvh pt-4 bg-[#181A1D]">
-        <AnnouncementBanner />
+        {showAnnouncementBanner && (
+          <div
+            className={`transition-all duration-500 ease-in-out ${
+              isAnimating
+                ? "opacity-0 transform -translate-y-4"
+                : "opacity-100 transform translate-y-0"
+            }`}
+          >
+            <AnnouncementBanner />
+          </div>
+        )}
         {mediaItems.length > 0 ? (
           <section className="mx-auto w-full max-w-6xl px-4 pb-12">
             {/* Navigation Bar */}
             <div className="mb-8">
               <nav className="flex space-x-6 overflow-x-auto pb-2">
-                {["All", "Trending", "Travel", "People", "Politics", "News", "Vlog"].map((category) => (
+                {[
+                  "All",
+                  "Trending",
+                  "Travel",
+                  "People",
+                  "Politics",
+                  "News",
+                  "Vlog",
+                ].map((category) => (
                   <button
                     key={category}
                     className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200 ${
@@ -84,7 +118,9 @@ export default function Home() {
             </div>
 
             <div className="mb-6">
-              <h2 className="text-lg text-white font-semibold tracking-tight mb-2">All media</h2>
+              <h2 className="text-lg text-white font-semibold tracking-tight mb-2">
+                All media
+              </h2>
               <div className="h-0.5 bg-gradient-to-r from-blue-500 to-teal-400 w-24"></div>
             </div>
             <MediaGrid items={mediaItems} />
