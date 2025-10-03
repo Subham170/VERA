@@ -1,6 +1,6 @@
-import { v2 as cloudinary } from "cloudinary";
 import multer from "multer";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
+import { v2 as cloudinary } from "cloudinary";
 
 // Configure Cloudinary
 cloudinary.config({
@@ -9,17 +9,20 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Storage configuration for user images
+// User-specific storage configuration
 const userImageStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: "vera/users",
-    allowed_formats: ["jpg", "jpeg", "png", "gif", "webp"],
-    transformation: [{ quality: "auto" }, { fetch_format: "auto" }],
+    allowed_formats: ["jpg", "jpeg", "png", "gif", "webp", "svg"],
+    transformation: [
+      { quality: "auto" },
+      { fetch_format: "auto" }
+    ],
   },
 });
 
-// Create multer instance for user images
+// Multer configuration for user images
 export const uploadUserImages = multer({
   storage: userImageStorage,
   limits: {
@@ -28,96 +31,96 @@ export const uploadUserImages = multer({
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
       "image/jpeg",
-      "image/jpg",
+      "image/jpg", 
       "image/png",
       "image/gif",
       "image/webp",
+      "image/svg+xml",
     ];
+    
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid image file type"), false);
+      cb(new Error("Invalid image file type. Only JPG, PNG, GIF, WebP, and SVG are allowed."), false);
     }
   },
 });
 
-// Middleware for uploading profile and banner images
-export const uploadProfileAndBanner = uploadUserImages.fields([
-  { name: "profile_img", maxCount: 1 },
-  { name: "banner_url", maxCount: 1 },
-]);
-
-// Middleware for uploading only profile image
-export const uploadProfileImage = uploadUserImages.single("profile_img");
-
-// Middleware for uploading only banner image
-export const uploadBannerImage = uploadUserImages.single("banner_url");
-
-// Error handling middleware for user uploads
-export const handleUserUploadError = (error, req, res, next) => {
-  if (error instanceof multer.MulterError) {
-    if (error.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({
-        status: "error",
-        message: "Image file too large. Maximum size is 10MB.",
-      });
-    }
-    if (error.code === "LIMIT_FILE_COUNT") {
-      return res.status(400).json({
-        status: "error",
-        message: "Too many files. Only one image per field is allowed.",
-      });
-    }
-    if (error.code === "LIMIT_UNEXPECTED_FILE") {
-      return res.status(400).json({
-        status: "error",
-        message: "Unexpected file field. Use 'profile_img' or 'banner_url'.",
-      });
-    }
-  }
-
-  if (error.message.includes("Invalid")) {
-    return res.status(400).json({
-      status: "error",
-      message: error.message,
+// Middleware for handling multiple image fields
+export const handleUserImageUpload = (fields) => {
+  return (req, res, next) => {
+    const upload = uploadUserImages.fields(fields);
+    
+    upload(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({
+          status: "error",
+          message: err.message,
+        });
+      }
+      
+      // Process uploaded files and add URLs to req.body
+      if (req.files) {
+        // Handle profile image
+        if (req.files.profile_img && req.files.profile_img[0]) {
+          req.body.profile_img = req.files.profile_img[0].secure_url;
+        }
+        
+        // Handle banner image
+        if (req.files.banner_url && req.files.banner_url[0]) {
+          req.body.banner_url = req.files.banner_url[0].secure_url;
+        }
+      }
+      
+      next();
     });
-  }
-
-  next(error);
-};
-
-// Utility function to extract file info from Cloudinary result
-export const extractUserFileInfo = (cloudinaryResult) => {
-  return {
-    public_id: cloudinaryResult.public_id,
-    secure_url: cloudinaryResult.secure_url,
-    url: cloudinaryResult.url,
-    format: cloudinaryResult.format,
-    resource_type: cloudinaryResult.resource_type,
-    bytes: cloudinaryResult.bytes,
-    width: cloudinaryResult.width,
-    height: cloudinaryResult.height,
-    created_at: cloudinaryResult.created_at,
   };
 };
 
-// Middleware to add file info to request
-export const addUserFileInfo = (req, res, next) => {
-  if (req.files) {
-    req.filesInfo = {};
+// Middleware for single image upload (profile or banner)
+export const handleSingleImageUpload = (fieldName) => {
+  return (req, res, next) => {
+    const upload = uploadUserImages.single(fieldName);
+    
+    upload(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({
+          status: "error",
+          message: err.message,
+        });
+      }
+      
+      // Process uploaded file and add URL to req.body
+      if (req.file) {
+        req.body[fieldName] = req.file.secure_url;
+      }
+      
+      next();
+    });
+  };
+};
 
-    if (req.files.profile_img) {
-      req.filesInfo.profile_img = extractUserFileInfo(req.files.profile_img[0]);
-    }
-
-    if (req.files.banner_url) {
-      req.filesInfo.banner_url = extractUserFileInfo(req.files.banner_url[0]);
-    }
+// Utility function to delete old images from Cloudinary
+export const deleteCloudinaryImage = async (imageUrl) => {
+  try {
+    if (!imageUrl) return;
+    
+    // Extract public ID from Cloudinary URL
+    const urlParts = imageUrl.split('/');
+    const publicId = urlParts[urlParts.length - 1].split('.')[0];
+    const folder = urlParts[urlParts.length - 2];
+    const fullPublicId = `vera/users/${publicId}`;
+    
+    await cloudinary.uploader.destroy(fullPublicId);
+  } catch (error) {
+    console.error("Error deleting image from Cloudinary:", error);
+    // Don't throw error as this is cleanup operation
   }
+};
 
-  if (req.file) {
-    req.fileInfo = extractUserFileInfo(req.file);
-  }
-
-  next();
+export default {
+  uploadUserImages,
+  handleUserImageUpload,
+  handleSingleImageUpload,
+  deleteCloudinaryImage,
 };

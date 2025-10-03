@@ -24,7 +24,7 @@ const userSchema = new mongoose.Schema(
     },
     username: {
       type: String,
-      required: [true, "Username is required"],
+      // required: [true, "Username is required"],
       unique: true,
       trim: true,
       minlength: [3, "Username must be at least 3 characters"],
@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: [true, "Email is required"],
+      // required: [true, "Email is required"],
       unique: true,
       lowercase: true,
       trim: true,
@@ -53,6 +53,8 @@ const userSchema = new mongoose.Schema(
     address: {
       type: String,
       trim: true,
+      required: [true, "Address is required"],
+      unique: true,
       maxlength: [200, "Address cannot be more than 200 characters"],
     },
   },
@@ -62,8 +64,8 @@ const userSchema = new mongoose.Schema(
 );
 
 // Index for better query performance
-userSchema.index({ username: 1 });
-userSchema.index({ email: 1 });
-userSchema.index({ createdAt: -1 });
+// userSchema.index({ username: 1 });
+// userSchema.index({ email: 1 });
+// userSchema.index({ createdAt: -1 });
 
 export default mongoose.model("User", userSchema);

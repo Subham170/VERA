@@ -7,11 +7,8 @@ import morgan from "morgan";
 dotenv.config();
 
 import connectDB from "./config/database.js";
-
-// Import routes
-import mediaRoutes from "./media/routes.js";
-// import tagRoutes from "./tags/routes.js";
 import userRoutes from "./user/routes.js";
+import tagRoutes from "./tag/routes.js";
 
 // Connect to MongoDB
 connectDB();
@@ -47,6 +44,10 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
 
+// API routes
+app.use("/api/users", userRoutes);
+app.use("/api/tags", tagRoutes);
+
 // Health check endpoint
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -55,11 +56,6 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
-// API routes
-app.use("/api/users", userRoutes);
-// app.use("/api/tags", tagRoutes);
-app.use("/api/media", mediaRoutes);
 
 // 404 handler
 app.use("*", (req, res) => {
