@@ -4,6 +4,9 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import morgan from "morgan";
+
+import { detectionRoutes } from "./detection/index.js";
+
 dotenv.config();
 
 import connectDB from "./config/database.js";
@@ -44,9 +47,14 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
 
+// Environment validation is now handled in the detection module
+
+
+
 // API routes
 app.use("/api/users", userRoutes);
 app.use("/api/tags", tagRoutes);
+app.use("/api", detectionRoutes);
 
 // Health check endpoint
 app.get("/health", (req, res) => {
