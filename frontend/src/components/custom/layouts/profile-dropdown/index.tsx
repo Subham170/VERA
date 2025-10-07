@@ -2,20 +2,19 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  User, 
-  Pencil, 
-  Tag, 
-  Sparkles, 
-  BookOpen, 
-  HelpCircle, 
-  Settings, 
-  Globe, 
-  LogOut, 
+import {
+  User,
+  Pencil,
+  Tag,
+  Sparkles,
+  BookOpen,
+  HelpCircle,
+  Settings,
+  Globe,
+  LogOut,
   ChevronDown,
-  Copy
+  Copy,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 interface ProfileDropdownProps {
   isOpen: boolean;
@@ -43,7 +42,8 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
   const handleItemClick = (href: string) => {
     onClose();
     if (href === "/logout") {
-      console.log("Logout clicked");
+      setConnectedAddress(null);
+      localStorage.removeItem("userWalletAddress");
     } else {
       router.push(href);
     }
@@ -53,7 +53,9 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
     try {
       if (typeof window.ethereum !== "undefined") {
         const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-        setConnectedAddress(accounts[0]);
+        const address = accounts[0];
+        setConnectedAddress(address);
+        localStorage.setItem("userWalletAddress", address);
       } else {
         alert("MetaMask not found. Please install it to connect your wallet.");
       }
@@ -66,8 +68,17 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
     if (!connectedAddress) return;
     try {
       await navigator.clipboard.writeText(connectedAddress);
-    } catch {}
+    } catch (err) {
+      console.error("Failed to copy address:", err);
+    }
   };
+
+  useEffect(() => {
+    const storedAddress = localStorage.getItem("userWalletAddress");
+    if (storedAddress) {
+      setConnectedAddress(storedAddress);
+    }
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

@@ -3,7 +3,6 @@
 import AuthenticatedLayout from "@/components/custom/layouts/authenticated-layout";
 import TagNewMediaForm from "@/components/custom/tag-new-media-form";
 import { useAuth } from "@/context/AuthContext";
-import { useTagData } from "@/context/TagDataContext";
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -18,7 +17,6 @@ interface TagFormData {
 
 export default function CreateTagPage() {
   const { isAuthorized, isLoading } = useAuth();
-  const { setTagData } = useTagData();
   const router = useRouter();
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -31,9 +29,9 @@ export default function CreateTagPage() {
   const handleContinue = async (data: TagFormData) => {
     setIsTransitioning(true);
     
-    const files = data.files || [];
-    if (files.length === 0) {
-      toast.error("Please select at least one file to continue.");
+    const file = data.files?.[0];
+    if (!file) {
+      toast.error("Please select a file to continue.");
       setIsTransitioning(false);
       return;
     }
@@ -48,15 +46,13 @@ export default function CreateTagPage() {
     };
 
     try {
-      const base64Files = await Promise.all(files.map(fileToDataUrl));
+      const base64Preview = await fileToDataUrl(file);
       
       const tagDataPayload = {
-        fileName: data.fileName,
+        name: data.fileName,
         description: data.description || "",
         mediaType: data.mediaType || "image",
-        isBulkUpload: files.length > 1,
-        fileCount: files.length,
-        files: base64Files,
+        filePreview: base64Preview,
       };
 
       try {
@@ -68,15 +64,13 @@ export default function CreateTagPage() {
         return;
       }
       
-      setTagData(tagDataPayload);
-
       setTimeout(() => {
         router.push("/review-tag");
       }, 800);
 
     } catch (err) {
-      console.error("Error processing files:", err);
-      toast.error("There was an error processing your files.");
+      console.error("Error processing file:", err);
+      toast.error("There was an error processing your file.");
       setIsTransitioning(false);
     }
   };
