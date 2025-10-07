@@ -26,6 +26,7 @@ interface ProfileDropdownProps {
 export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdownProps) {
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
 
   const menuItems = [
     { icon: User, label: "Profile", href: "/profile" },
@@ -42,22 +43,32 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
   const handleItemClick = (href: string) => {
     onClose();
     if (href === "/logout") {
-      // Handle logout logic here
       console.log("Logout clicked");
     } else {
       router.push(href);
     }
   };
 
-  const copyAddress = async () => {
+  const connectWallet = async () => {
     try {
-      await navigator.clipboard.writeText("0xe7k2...f3b76");
-    } catch {
-      // silent fail
+      if (typeof window.ethereum !== "undefined") {
+        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+        setConnectedAddress(accounts[0]);
+      } else {
+        alert("MetaMask not found. Please install it to connect your wallet.");
+      }
+    } catch (error) {
+      console.error("Wallet connection failed", error);
     }
   };
 
-  // Close dropdown when clicking outside
+  const copyAddress = async () => {
+    if (!connectedAddress) return;
+    try {
+      await navigator.clipboard.writeText(connectedAddress);
+    } catch {}
+  };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -86,7 +97,6 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
       ref={dropdownRef}
       className="absolute right-0 top-full mt-2 w-64 bg-[#181A1D] rounded-lg shadow-xl border border-gray-700 z-100"
     >
-      {/* Menu Items */}
       <div className="p-2">
         {menuItems.map((item, index) => {
           const Icon = item.icon;
@@ -103,28 +113,37 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
         })}
       </div>
 
-      {/* Wallet Address Section */}
       <div className="mx-2 mb-2 p-3 bg-[#2D2D30] rounded-lg">
-        <div className="flex items-center gap-3">
-          <img
-            src="/images/wallets/meta-mask.png"
-            alt="MetaMask"
-            className="h-5 w-5"
-          />
-          <span className="text-sm text-white font-mono">0xe7k2...f3b76</span>
+        {connectedAddress ? (
+          <div className="flex items-center gap-3">
+            <img
+              src="/images/wallets/meta-mask.png"
+              alt="MetaMask"
+              className="h-5 w-5"
+            />
+            <span className="text-sm text-white font-mono">
+              {connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}
+            </span>
+            <button
+              onClick={copyAddress}
+              className="ml-auto p-1 hover:bg-[#3D3D40] rounded transition-colors duration-200"
+            >
+              <Copy className="h-3 w-3 text-gray-400" />
+            </button>
+            <button className="p-1 hover:bg-[#3D3D40] rounded transition-colors duration-200">
+              <ChevronDown className="h-3 w-3 text-gray-400" />
+            </button>
+          </div>
+        ) : (
           <button
-            onClick={copyAddress}
-            className="ml-auto p-1 hover:bg-[#3D3D40] rounded transition-colors duration-200"
+            onClick={connectWallet}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md text-sm font-medium transition-colors duration-200"
           >
-            <Copy className="h-3 w-3 text-gray-400" />
+            Connect Wallet
           </button>
-          <button className="p-1 hover:bg-[#3D3D40] rounded transition-colors duration-200">
-            <ChevronDown className="h-3 w-3 text-gray-400" />
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* Currency Section */}
       <div className="mx-2 mb-2 p-3 bg-[#2D2D30] rounded-lg">
         <div className="flex items-center gap-3">
           <div className="h-5 w-5 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">

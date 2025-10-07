@@ -20,19 +20,19 @@ const mediaItems = [
     id: "2",
     title: "CubaTravelPodcast.mp3",
     handle: "@JordanLeex",
-    thumbnail: "/audio-waveform-teal.jpg",
+    thumbnail: "/images/audio-waveform-teal.jpg",
   },
   {
     id: "3",
     title: "Travelvlog.mp4",
     handle: "@JordanLeex",
-    thumbnail: "/airport-window-sunset.jpg",
+    thumbnail: "/images/airport-window-sunset.jpg",
   },
   {
     id: "4",
     title: "TravelWithMeToTurkey.mp4",
     handle: "@JordanLeex",
-    thumbnail: "/passport-luggage-flatlay.jpg",
+    thumbnail: "/images/passport-luggage-flatlay.jpg",
   },
 ];
 export default function Home() {
