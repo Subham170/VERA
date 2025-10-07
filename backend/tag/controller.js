@@ -302,7 +302,7 @@ export const getTagsByUser = async (req, res) => {
     const { page = 1, limit = 10, type, status = "active" } = req.query;
 
     // Build filter object
-    const filter = { address, status };
+    const filter = { address };
     if (type) filter.type = type;
 
     // Calculate pagination
@@ -310,10 +310,6 @@ export const getTagsByUser = async (req, res) => {
 
     // Get tags
     const tags = await Tag.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean();
 
     // Get total count
     const total = await Tag.countDocuments(filter);

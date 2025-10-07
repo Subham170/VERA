@@ -3,15 +3,16 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { LoginCard } from "@/components/custom/login-card";
+import { SignUpCard } from "@/components/custom/signup-card";
 import toast, { Toaster } from 'react-hot-toast';
 import { getAddress } from 'ethers';
 
-export default function LoginPage() {
+export default function SignUpPage() {
   const { isAuthorized, login, isLoading: isAuthLoading } = useAuth();
   const router = useRouter();
 
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -23,48 +24,50 @@ export default function LoginPage() {
 
   const handleConnectWallet = async () => {
     if (typeof window.ethereum === 'undefined') {
-      toast.error('MetaMask is not installed.');
+      toast.error('MetaMask is not installed. Please install it to continue.');
       return;
     }
-    setIsLoading(true);
-    const toastId = toast.loading('Connecting wallet...');
     try {
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       const checksummedAddress = getAddress(accounts[0]);
       setConnectedAddress(checksummedAddress);
-      toast.success('Wallet connected!', { id: toastId });
+      toast.success('Wallet connected successfully!');
     } catch (err) {
-      toast.error('Failed to connect wallet.', { id: toastId });
-    } finally {
-      setIsLoading(false);
+      toast.error('Failed to connect wallet. The request was rejected.');
+      console.error(err);
     }
   };
 
-  const handleLogin = async () => {
-    if (!username || !connectedAddress) {
-      toast.error('Please enter your username and connect your wallet.');
+  const handleSignUp = async () => {
+    if (!username || !email || !connectedAddress) {
+      toast.error('Please fill all fields and connect your wallet.');
       return;
     }
     setIsLoading(true);
-    const toastId = toast.loading('Verifying user...');
+    const toastId = toast.loading('Creating your account...');
 
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${connectedAddress}`);
+      const response = await fetch('http://localhost:5000/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          email,
+          address: connectedAddress,
+        }),
+      });
 
       if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('User not found. Please sign up first.');
-        }
-        throw new Error('Login failed. Please try again.');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Sign up failed. Please try again.');
       }
 
-      const userData = await response.json();
-      if (getAddress(userData.data.user.address) !== connectedAddress) {
-         throw new Error('Address does not match the connected wallet address.');
-      }
+      const newUser = await response.json();
+      login(newUser); 
       
-      login(userData); 
-      toast.success('Login successful! Redirecting...', { id: toastId });
+      toast.success('Account created successfully! Redirecting...', { id: toastId });
       
       setTimeout(() => {
         router.push('/');
@@ -96,12 +99,14 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
         <section className="relative mx-[7%] flex min-h-dvh max-w-7xl items-center justify-end px-4">
           <div className="w-full max-w-md">
-            <LoginCard 
+            <SignUpCard
               username={username}
               onUsernameChange={setUsername}
+              email={email}
+              onEmailChange={setEmail}
               connectedAddress={connectedAddress}
               onConnectWallet={handleConnectWallet}
-              onLogin={handleLogin}
+              onSignUp={handleSignUp}
               isLoading={isLoading}
             />
           </div>

@@ -4,8 +4,7 @@ import { deleteCloudinaryImage } from "../middleware/userUpload.js";
 // Create a new user with address
 export const createUser = async (req, res) => {
   try {
-    const { address } = req.body;
-
+    const { address , username , email} = req.body;
     // Validate required fields
     if (!address) {
       return res.status(400).json({
@@ -24,7 +23,7 @@ export const createUser = async (req, res) => {
     }
 
     // Create new user
-    const user = new User({ address });
+    const user = new User({ address , username , email});
     await user.save();
 
     res.status(201).json({
@@ -34,6 +33,7 @@ export const createUser = async (req, res) => {
         user: {
           id: user._id,
           address: user.address,
+          username:user.username,
           createdAt: user.createdAt,
         },
       },
@@ -61,7 +61,7 @@ export const getUserByAddress = async (req, res) => {
     }
 
     const user = await User.findOne({ address });
-
+    console.log(user);
     if (!user) {
       return res.status(404).json({
         status: "error",
@@ -235,7 +235,8 @@ export const updateUserImagesByAddress = async (req, res) => {
   try {
     const { address } = req.params;
     const { profile_img, banner_url } = req.body;
-
+    console.log(profile_img);
+    console.log(banner_url);
     if (!address) {
       return res.status(400).json({
         status: "error",

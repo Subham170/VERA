@@ -2,55 +2,48 @@ import multer from "multer";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import { v2 as cloudinary } from "cloudinary";
 
-// Configure Cloudinary
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// User-specific storage configuration
+
 const userImageStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
+  cloudinary,
   params: {
     folder: "vera/users",
     allowed_formats: ["jpg", "jpeg", "png", "gif", "webp", "svg"],
     transformation: [
       { quality: "auto" },
-      { fetch_format: "auto" }
+      { fetch_format: "auto" },
     ],
   },
 });
 
-// Multer configuration for user images
-export const uploadUserImages = multer({
+
+const uploadUserImages = multer({
   storage: userImageStorage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit for images
-  },
+  limits: { fileSize: 10 * 1024 * 1024 }, 
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
       "image/jpeg",
-      "image/jpg", 
+      "image/jpg",
       "image/png",
       "image/gif",
       "image/webp",
       "image/svg+xml",
     ];
-    
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error("Invalid image file type. Only JPG, PNG, GIF, WebP, and SVG are allowed."), false);
-    }
+    if (allowedTypes.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Invalid file type. Only JPG, PNG, GIF, WebP, and SVG are allowed."), false);
   },
 });
 
-// Middleware for handling multiple image fields
+
 export const handleUserImageUpload = (fields) => {
-  return (req, res, next) => {
+  return (req, res) => {
     const upload = uploadUserImages.fields(fields);
-    
     upload(req, res, (err) => {
       if (err) {
         return res.status(400).json({
@@ -58,30 +51,31 @@ export const handleUserImageUpload = (fields) => {
           message: err.message,
         });
       }
-      
-      // Process uploaded files and add URLs to req.body
+
+      const uploadedUrls = {};
+
       if (req.files) {
-        // Handle profile image
-        if (req.files.profile_img && req.files.profile_img[0]) {
-          req.body.profile_img = req.files.profile_img[0].secure_url;
+        if (req.files.profile_img?.[0]) {
+          uploadedUrls.profile_img = req.files.profile_img[0].path; 
         }
-        
-        // Handle banner image
-        if (req.files.banner_url && req.files.banner_url[0]) {
-          req.body.banner_url = req.files.banner_url[0].secure_url;
+        if (req.files.banner_url?.[0]) {
+          uploadedUrls.banner_url = req.files.banner_url[0].path;
         }
       }
-      
-      next();
+
+      return res.status(200).json({
+        status: "success",
+        message: "Images uploaded successfully",
+        urls: uploadedUrls,
+      });
     });
   };
 };
 
-// Middleware for single image upload (profile or banner)
+
 export const handleSingleImageUpload = (fieldName) => {
-  return (req, res, next) => {
+  return (req, res) => {
     const upload = uploadUserImages.single(fieldName);
-    
     upload(req, res, (err) => {
       if (err) {
         return res.status(400).json({
@@ -89,32 +83,35 @@ export const handleSingleImageUpload = (fieldName) => {
           message: err.message,
         });
       }
-      
-      // Process uploaded file and add URL to req.body
-      if (req.file) {
-        req.body[fieldName] = req.file.secure_url;
+
+      if (!req.file) {
+        return res.status(400).json({
+          status: "error",
+          message: "No file uploaded",
+        });
       }
-      
-      next();
+
+      return res.status(200).json({
+        status: "success",
+        message: "Image uploaded successfully",
+        url: req.file.path, 
+      });
     });
   };
 };
 
-// Utility function to delete old images from Cloudinary
+
 export const deleteCloudinaryImage = async (imageUrl) => {
   try {
     if (!imageUrl) return;
-    
-    // Extract public ID from Cloudinary URL
-    const urlParts = imageUrl.split('/');
-    const publicId = urlParts[urlParts.length - 1].split('.')[0];
-    const folder = urlParts[urlParts.length - 2];
+
+    const urlParts = imageUrl.split("/");
+    const publicId = urlParts[urlParts.length - 1].split(".")[0];
     const fullPublicId = `vera/users/${publicId}`;
-    
+
     await cloudinary.uploader.destroy(fullPublicId);
   } catch (error) {
-    console.error("Error deleting image from Cloudinary:", error);
-    // Don't throw error as this is cleanup operation
+    console.error("Error deleting Cloudinary image:", error);
   }
 };
 

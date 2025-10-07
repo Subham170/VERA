@@ -1,122 +1,123 @@
 "use client";
+
 import { useState, useEffect } from "react";
-import { ethers } from "ethers";
+import { useRouter } from "next/navigation";
 import { ProfileHeader } from "@/components/custom/profile/profile-header";
 import { MediaGrid } from "@/components/custom/profile/media-grid";
+import { getAddress } from "ethers";
 
-const ABI = [
-  "function getMediaByOwner(address owner) public view returns (string[] memory)",
-];
-const CONTRACT_ADDRESS = "0x38a9487b69d3b8f810b5DFC53f671db002e827A4";
-
-const IPFS_GATEWAY = "https://ipfs.io/ipfs/";
-
-interface MediaItem {
-  id: string;
-  title: string;
-  handle: string;
-  thumbnail: string;
+interface UserProfile {
+  username: string;
+  email: string;
+  address: string;
+  bio: string;
+  profile_img: string;
+  banner_url: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface Metadata {
-    name: string;
-    description: string;
-    image: string;
+interface Tag {
+  _id: string;
+  file_name: string;
+  description?: string;
+  img_urls?: string[];
+  video_urls?: string[];
+  audio_urls?: string[];
+  type: "img" | "video" | "audio";
+  hash_address: string;
+  address: string;
+  createdAt: string;
 }
 
 export default function ProfilePage() {
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [profileData, setProfileData] = useState<UserProfile | null>(null);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [userTags, setUserTags] = useState<Tag[]>([]);
+  const router = useRouter();
 
   useEffect(() => {
-    const fetchProfileData = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      if (typeof window.ethereum === "undefined") {
-        setError("MetaMask is not installed. Please install it to view your profile.");
-        setIsLoading(false);
+    const getWalletAddress = async () => {
+      if (!window.ethereum) {
+        setError("MetaMask is not installed.");
         return;
       }
 
       try {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const accounts = await provider.send("eth_requestAccounts", []);
-
+        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
         if (accounts.length === 0) {
-          setError("Please connect your wallet to view your media.");
-          setIsLoading(false);
+          router.push("/login");
           return;
         }
+          const checksummedAddress = getAddress(accounts[0]);
+          setConnectedAddress(checksummedAddress);
+      } catch (err) {
+        console.error("Failed to connect wallet:", err);
+        setError("Failed to connect wallet.");
+      }
+    };
 
-        const address = accounts[0];
-        setConnectedAddress(address);
+    getWalletAddress();
+  }, [router]);
 
-        const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
-        const metadataCids: string[] = await contract.getMediaByOwner(address);
+  useEffect(() => {
+    if (!connectedAddress) return;
 
-        if (metadataCids.length === 0) {
-          setIsLoading(false);
-          return;
-        }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-        const itemsPromise = metadataCids.map(async (cid) => {
-            try {
-                const response = await fetch(`${IPFS_GATEWAY}${cid}`);
-                if (!response.ok) return null;
-                const metadata: Metadata = await response.json();
-                
-                return {
-                    id: cid,
-                    title: metadata.name,
-                    handle: `@${address.slice(2, 8)}`,
-                    thumbnail: metadata.image.replace("ipfs://", IPFS_GATEWAY),
-                };
-            } catch (e) {
-                console.error("Failed to fetch metadata for CID:", cid, e);
-                return null;
-            }
+    const fetchProfileData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const userProfileResponse = await fetch(`http://localhost:5000/api/users/${connectedAddress}`, {
+          signal: controller.signal,
         });
-        
-        const fetchedItems = (await Promise.all(itemsPromise)).filter(item => item !== null) as MediaItem[];
-        setMediaItems(fetchedItems.reverse());
-
+        if (!userProfileResponse.ok) throw new Error("Failed to fetch user profile.");
+        const userProfile: UserProfile = (await userProfileResponse.json())?.data.user;
+        setProfileData(userProfile);
       } catch (err: any) {
-        console.error("Failed to fetch profile data:", err);
-        setError("Failed to load profile data. The user may have rejected the connection.");
+        if (err.name === "AbortError") {
+          setError("Could not connect to the profile server.");
+        } else {
+          console.error(err);
+          setError("Failed to load profile data.");
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchProfileData();
-  }, []);
+    const fetchUserTags = async () => {
+      try {
+        console.log(connectedAddress);
+        const res = await fetch(`http://localhost:5000/api/tags/user/${connectedAddress}`);
+        if (!res.ok) throw new Error("Failed to fetch user tags.");
+        const tagsData = await res.json();
+        console.log(tagsData)
+        setUserTags(tagsData?.data.tags || []);
+      } catch (err: any) {
+        console.error("Failed to fetch tags:", err);
+      }
+    };
 
-  const renderContent = () => {
-    if (isLoading) {
-      return <p className="text-white text-center">Loading your media...</p>;
-    }
-    if (error) {
-      return <p className="text-yellow-500 text-center">{error}</p>;
-    }
-    if (mediaItems.length === 0) {
-      return <p className="text-gray-400 text-center">You haven't registered any media yet.</p>;
-    }
-    return <MediaGrid items={mediaItems} />;
-  };
+    fetchProfileData();
+    fetchUserTags();
+    clearTimeout(timeoutId);
+  }, [connectedAddress]);
 
   return (
     <main className="min-h-screen bg-[#181A1D]">
       <ProfileHeader
-        name={connectedAddress ? `User...${connectedAddress.slice(-4)}` : "Not Connected"}
-        handle={connectedAddress ? `@${connectedAddress.slice(2, 10)}` : "@..."}
+        name={profileData?.username || "Loading..."}
+        handle={`@${profileData?.username || "..."}`}
         address={connectedAddress || "0x00...0000"}
-        coverSrc="/images/banner.jpg"
-        avatarSrc="/images/dp.jpg"
+        coverSrc={profileData?.banner_url || "/images/banner.jpg"}
+        avatarSrc={profileData?.profile_img || "/images/dp.jpg"}
+        bio={profileData?.bio}
       />
-
       <section className="mx-auto w-full max-w-6xl px-4 pb-12">
         <div className="mb-6">
           <h2 className="text-lg text-white font-semibold tracking-tight mb-2">
@@ -124,10 +125,17 @@ export default function ProfilePage() {
           </h2>
           <div className="h-0.5 bg-gradient-to-r from-blue-500 to-teal-400 w-24"></div>
         </div>
-        
-        {renderContent()}
+        {isLoading && <p className="text-white text-center">Loading profile...</p>}
+        {error && <p className="text-yellow-500 text-center">{error}</p>}
+        {!isLoading && !error && userTags.length === 0 && (
+          <div className="text-center text-gray-400 py-12">
+            <p>No media found for this user.</p>
+          </div>
+        )}
+        {!isLoading && !error && userTags.length > 0 && (
+          <MediaGrid mediaItems={userTags} />
+        )}
       </section>
     </main>
   );
 }
-

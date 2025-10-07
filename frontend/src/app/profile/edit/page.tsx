@@ -1,51 +1,163 @@
-"use client"
+"use client";
 
-import Image from "next/image"
-import Link from "next/link"
-import { useState, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { X, Pencil } from "lucide-react"
+import { useState, useRef, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { X, Pencil, Loader2 } from "lucide-react";
+import toast, { Toaster } from "react-hot-toast";
+
+interface UserProfile {
+  username: string;
+  email: string;
+  address: string;
+  bio: string;
+  profile_img: string;
+  banner_url: string;
+}
 
 export default function EditProfilePage() {
-  const [username, setUsername] = useState("JordanLeex")
-  const [bio, setBio] = useState(
-    "",
-  )
-  const [email, setEmail] = useState("jordanleex@gmail.com")
-  const [profileImage, setProfileImage] = useState("/images/dp.jpg")
-  const [bannerImage, setBannerImage] = useState("/images/banner.jpg")
+  const [username, setUsername] = useState("");
+  const [bio, setBio] = useState("");
+  const [email, setEmail] = useState("");
   
-  const profileImageRef = useRef<HTMLInputElement>(null)
-  const bannerImageRef = useRef<HTMLInputElement>(null)
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [bannerImage, setBannerImage] = useState<string | null>(null);
 
-  const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setProfileImage(event.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
+  const [bannerImageFile, setBannerImageFile] = useState<File | null>(null);
 
-  const handleBannerImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setBannerImage(event.target?.result as string)
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingInitialData, setIsFetchingInitialData] = useState(true);
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  
+  const profileImageRef = useRef<HTMLInputElement>(null);
+  const bannerImageRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    let userSessionAddress: string | null = null;
+    try {
+      const savedUserJSON = localStorage.getItem('userSession');
+      if (savedUserJSON) {
+        const savedUser = JSON.parse(savedUserJSON);
+        if (savedUser && savedUser.data?.user?.address) {
+          userSessionAddress = savedUser.data.user.address;
+          setConnectedAddress(userSessionAddress);
+        }
       }
-      reader.readAsDataURL(file)
+    } catch (e) { console.error("Failed to parse user session.", e); }
+
+    if (!userSessionAddress) {
+      toast.error("You must be logged in to edit your profile.");
+      router.push('/login');
+      setIsFetchingInitialData(false);
+      return;
     }
-  }
+
+    const fetchUserData = async (address: string) => {
+      try {
+        const response = await fetch(`http://localhost:5000/api/users/${address}`);
+        if (!response.ok) throw new Error("Failed to fetch user data.");
+        const data: UserProfile = (await response.json()).data.user;
+        setUsername(data.username || "");
+        setBio(data.bio || "");
+        setEmail(data.email || "");
+        setProfileImage(data.profile_img || null);
+        setBannerImage(data.banner_url || null);
+      } catch (error: any) {
+        toast.error(error.message);
+      } finally {
+        setIsFetchingInitialData(false);
+      }
+    };
+    fetchUserData(userSessionAddress);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: "profile" | "banner") => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        if (type === "profile") {
+          setProfileImage(result);
+          setProfileImageFile(file);
+        } else {
+          setBannerImage(result);
+          setBannerImageFile(file);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  const handleSaveChanges = async () => {
+     if (!connectedAddress) {
+      toast.error("Wallet address not found.");
+      return;
+    }
+    setIsLoading(true);
+    const toastId = toast.loading("Saving all changes...");
+
+    try {
+      const updatePromises = [];
+
+      const textUpdatePromise = fetch(`http://localhost:5000/api/users/${connectedAddress}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, bio, email }),
+      });
+      updatePromises.push(textUpdatePromise);
+
+      if (profileImageFile) {
+        const profileFormData = new FormData();
+        profileFormData.append('profile_img', profileImageFile);
+        const profileImagePromise = fetch(`http://localhost:5000/api/users/${connectedAddress}/profile-image`, {
+          method: 'PUT',
+          body: profileFormData,
+        });
+        updatePromises.push(profileImagePromise);
+      }
+
+      if (bannerImageFile) {
+        const bannerFormData = new FormData();
+        bannerFormData.append('banner_url', bannerImageFile);
+        const bannerImagePromise = fetch(`http://localhost:5000/api/users/${connectedAddress}/banner-image`, {
+          method: 'PUT',
+          body: bannerFormData,
+        });
+        updatePromises.push(bannerImagePromise);
+      }
+      
+      const responses = await Promise.all(updatePromises);
+      
+      for (const response of responses) {
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "An error occurred during one of the updates.");
+        }
+      }
+      
+      toast.success('Profile updated successfully!', { id: toastId });
+      router.push('/profile');
+
+    } catch (error: any) {
+        toast.error(error.message, { id: toastId });
+    } finally {
+        setIsLoading(false);
+    }
+  };
 
   return (
+    <>
+    <Toaster position="top-center" />
     <main className="min-h-screen bg-[#1A1A1A] text-white p-6">
       <div className="max-w-5xl mx-auto pt-4">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl font-semibold text-white">Profile details</h1>
           <Button 
@@ -60,140 +172,91 @@ export default function EditProfilePage() {
             </Link>
           </Button>
         </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column - Form Fields */}
-          <div className="space-y-6">
-            {/* Username Field */}
-            <div className="space-y-2">
-              <label htmlFor="username" className="text-sm font-medium text-white">
-                Username
-              </label>
-              <Input
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter username"
-                className="bg-[#2D2D30] border-gray-600 text-white placeholder-gray-400 rounded-lg"
-              />
-            </div>
-
-            {/* Bio Field */}
-            <div className="space-y-2">
-              <label htmlFor="bio" className="text-sm font-medium text-white">
-                Bio
-              </label>
-              <Textarea
-                id="bio"
-                rows={8}
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder="Tell the world your story."
-                className="bg-[#2D2D30] border-gray-600 text-white placeholder-gray-400 rounded-lg resize-y h-32 min-h-32"
-              />
-            </div>
-
-            {/* Email Field */}
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-white">
-                Email Address
-              </label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter email"
-                className="bg-[#2D2D30] border-gray-600 text-white placeholder-gray-400 rounded-lg"
-              />
-            </div>
-
-            {/* Save Button */}
-            <Button className="w-full cursor-pointer bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium">
-              Save
-            </Button>
+        
+        {isFetchingInitialData ? (
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-white" />
           </div>
-
-          {/* Right Column - Profile Media */}
-          <div className="space-y-6">
-            {/* Profile Image */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-white">Profile image</label>
-              <div className="relative h-32 w-32 group">
-                <div className="relative h-32 w-32 overflow-hidden rounded-full bg-gradient-to-r from-blue-500 to-green-400">
-                  {profileImage ? (
-                    <Image 
-                      src={profileImage} 
-                      alt="Profile image preview" 
-                      fill 
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-r from-blue-500 to-green-400 flex items-center justify-center">
-                      {/* <span className="text-white text-2xl font-bold"></span> */}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Pencil Icon Overlay */}
-                <button
-                  onClick={() => profileImageRef.current?.click()}
-                  className=" cursor-pointer absolute -bottom-[-4px] -right-[-4px] h-8 w-8 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center shadow-lg transition-colors duration-200 group-hover:scale-110"
-                >
-                  <Pencil className="h-4 w-4 text-white" />
-                </button>
-                
-                {/* Hidden File Input */}
-                <input
-                  ref={profileImageRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleProfileImageChange}
-                  className="hidden"
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-6">
+              <div className="space-y-2">
+                <label htmlFor="username" className="text-sm font-medium text-white">Username</label>
+                <Input
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter username"
+                  className="bg-[#2D2D30] border-gray-600 text-white rounded-lg"
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="bio" className="text-sm font-medium text-white">Bio</label>
+                <Textarea
+                  id="bio"
+                  rows={8}
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="Tell the world your story."
+                  className="bg-[#2D2D30] border-gray-600 text-white rounded-lg resize-y h-48"
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="email" className="text-sm font-medium text-white">Email Address</label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter email"
+                  className="bg-[#2D2D30] border-gray-600 text-white rounded-lg"
                 />
               </div>
             </div>
-
-            {/* Profile Banner */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-white">Profile Banner</label>
-              <div className="relative h-24 w-full group">
-                <div className="relative h-24 w-full overflow-hidden rounded-lg bg-[#2D2D30]">
-                  {bannerImage ? (
-                    <Image 
-                      src={bannerImage} 
-                      alt="Profile banner preview" 
-                      fill 
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-[#2D2D30] flex items-center justify-center">
-                      <span className="text-gray-400 text-sm">No banner selected</span>
-                    </div>
-                  )}
+            
+            <div className="space-y-8">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white">Profile image</label>
+                <div className="relative h-32 w-32 group">
+                  <div className="relative h-32 w-32 overflow-hidden rounded-full bg-gray-700">
+                    {profileImage && <Image src={profileImage} alt="Profile image preview" fill className="object-cover" />}
+                  </div>
+                  <button
+                    onClick={() => profileImageRef.current?.click()}
+                    className="cursor-pointer absolute -bottom-1 -right-1 h-10 w-10 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center shadow-lg"
+                  >
+                    <Pencil className="h-5 w-5 text-white" />
+                  </button>
+                  <input ref={profileImageRef} type="file" accept="image/*" onChange={(e) => handleFileChange(e, "profile")} className="hidden" />
                 </div>
-                
-                {/* Pencil Icon Overlay */}
-                <button
-                  onClick={() => bannerImageRef.current?.click()}
-                  className=" cursor-pointer absolute bottom-2 right-2 h-8 w-8 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center shadow-lg transition-colors duration-200 group-hover:scale-110"
-                >
-                  <Pencil className="h-4 w-4 text-white" />
-                </button>
-                
-                {/* Hidden File Input */}
-                <input
-                  ref={bannerImageRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleBannerImageChange}
-                  className="hidden"
-                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white">Profile Banner</label>
+                <div className="relative h-40 w-full group rounded-lg overflow-hidden bg-[#2D2D30]">
+                  {bannerImage && <Image src={bannerImage} alt="Profile banner preview" fill className="object-cover" />}
+                  <button
+                    onClick={() => bannerImageRef.current?.click()}
+                    className="cursor-pointer absolute bottom-2 right-2 h-10 w-10 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center shadow-lg"
+                  >
+                    <Pencil className="h-5 w-5 text-white" />
+                  </button>
+                  <input ref={bannerImageRef} type="file" accept="image/*" onChange={(e) => handleFileChange(e, "banner")} className="hidden" />
+                </div>
               </div>
             </div>
+            
+            <div className="lg:col-span-3 mt-4">
+              <Button onClick={handleSaveChanges} disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium">
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save All Changes
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </main>
+    </>
   )
 }
+

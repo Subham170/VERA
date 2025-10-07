@@ -12,9 +12,10 @@ type Props = {
   address: string
   coverSrc: string
   avatarSrc: string
+  bio:any
 }
 
-export function ProfileHeader({ name, handle, address, coverSrc, avatarSrc }: Props) {
+export function ProfileHeader({ name, handle, address, coverSrc, avatarSrc ,bio}: Props) {
   const router = useRouter();
 
   const copyAddress = async () => {
@@ -83,16 +84,10 @@ export function ProfileHeader({ name, handle, address, coverSrc, avatarSrc }: Pr
         </div>
 
         <ul className="mt-4 grid gap-2 text-sm text-white">
-          {[
-            "Exploring the unseen with Jordan Leex.",
-            "Capturing moments, tasting adventures.",
-            "The journey awaits you.",
-          ].map((item, i) => (
-            <li key={i} className="flex items-start gap-2">
+             <li className="flex items-start gap-2">
               <span className={cn("mt-1 h-1.5 w-1.5 rounded-full bg-muted-foreground/70 text-white")} />
-              <span className="text-pretty">{item}</span>
+              <span className="text-pretty">{bio}</span>
             </li>
-          ))}
         </ul>
       </div>
     </header>

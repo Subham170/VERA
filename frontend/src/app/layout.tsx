@@ -3,6 +3,7 @@ import { TagDataProvider } from "@/context/TagDataContext";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import AuthenticatedLayout from "@/components/custom/layouts/authenticated-layout";
 import SiteNavbar from "@/components/custom/layouts/navbar";
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,10 +30,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+            <AuthenticatedLayout>
         <AuthProvider>
         <SiteNavbar />
           <TagDataProvider>{children}</TagDataProvider>
         </AuthProvider>
+        </AuthenticatedLayout>
       </body>
     </html>
   );

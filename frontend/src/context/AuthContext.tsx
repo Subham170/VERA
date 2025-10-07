@@ -1,106 +1,74 @@
 "use client";
 
-import {
-  createContext,
-  ReactNode,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-// User data interface
-export interface UserData {
-  [key: string]: any;
+export interface User {
+  address: string;
+  username: string;
+  email: string;
 }
 
-// Auth context interface
 interface AuthContextType {
-  // User data
-  userData: UserData | null;
   isAuthorized: boolean;
+  user: User | null;
   isLoading: boolean;
-
-  // Auth methods
-  updateUserData: (data: Partial<UserData>) => void;
-
-  // Auth state
-  token: string | null;
-  refreshToken: string | null;
+  login: (userData: User) => void;
+  logout: () => void;
 }
 
-// Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Auth provider component
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [isAuthorized, setIsAuthorized] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [token, setToken] = useState<string | null>(null);
-  const [refreshToken, setRefreshToken] = useState<string | null>(null);
 
-  // Update user data
-  const updateUserData = (data: Partial<UserData>) => {
-    if (userData && typeof window !== "undefined") {
-      const updatedUserData = { ...userData, ...data };
-      setUserData(updatedUserData);
-      localStorage.setItem("userData", JSON.stringify(updatedUserData));
-    }
-  };
-
-  // Initialize auth on mount
   useEffect(() => {
-    const checkAuth = () => {
-      try {
-        // Check if we're on the client side
-        if (typeof window === "undefined") {
-          setIsLoading(false);
-          return;
+    try {
+      const savedUserJSON = localStorage.getItem('userSession');
+      if (savedUserJSON) {
+        const savedUser = JSON.parse(savedUserJSON);
+        // Add a validation check to ensure the data from localStorage is valid
+        if (savedUser && savedUser.address) {
+          setUser(savedUser);
+        } else {
+          // If data is invalid or doesn't have an address, clear it
+          localStorage.removeItem('userSession');
         }
-
-        const storedToken = localStorage.getItem("authToken");
-        const storedRefreshToken = localStorage.getItem("refreshToken");
-        const storedUserData = localStorage.getItem("userData");
-
-        if (storedToken && storedUserData) {
-          const userData = JSON.parse(storedUserData);
-
-          setToken(storedToken);
-          setRefreshToken(storedRefreshToken);
-          setUserData(userData);
-          setIsAuthorized(true);
-        }
-      } catch (error) {
-        console.error("Auth check failed:", error);
-      } finally {
-        setIsLoading(false);
       }
-    };
-
-    checkAuth();
+    } catch (error) {
+      console.error("Failed to parse user session from localStorage", error);
+      localStorage.removeItem('userSession');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  // Context value
-  const value: AuthContextType = {
-    userData,
-    isAuthorized,
+  const login = (userData: User) => {
+    setUser(userData);
+    localStorage.setItem('userSession', JSON.stringify(userData));
+  };
+
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('userSession');
+  };
+
+  const value = {
+    isAuthorized: !!user,
+    user,
     isLoading,
-    updateUserData,
-    token,
-    refreshToken,
+    login,
+    logout,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// Custom hook to use auth context
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 }
 
-// Export the context for direct access if needed
-export { AuthContext };

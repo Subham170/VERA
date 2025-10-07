@@ -15,6 +15,11 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/ipfs/**', 
       },
+      {
+        protocol:"https",
+        hostname:"res.cloudinary.com",
+        port:"",
+      }
     ],
   }
 };

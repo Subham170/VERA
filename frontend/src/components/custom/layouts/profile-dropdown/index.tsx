@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   User,
@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Copy,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface ProfileDropdownProps {
   isOpen: boolean;
@@ -25,7 +26,8 @@ interface ProfileDropdownProps {
 export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdownProps) {
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  const { user, logout } = useAuth();
+  const connectedAddress = user?.address;
 
   const menuItems = [
     { icon: User, label: "Profile", href: "/profile" },
@@ -36,31 +38,16 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
     { icon: HelpCircle, label: "Help Center", href: "/help" },
     { icon: Settings, label: "Settings", href: "/settings" },
     { icon: Globe, label: "Language", href: "/language" },
-    { icon: LogOut, label: "Logout", href: "/logout" },
+    { icon: LogOut, label: "Logout", href: "/login" },
   ];
 
   const handleItemClick = (href: string) => {
     onClose();
-    if (href === "/logout") {
-      setConnectedAddress(null);
-      localStorage.removeItem("userWalletAddress");
+    if (href === "/login") {
+      logout();
+      router.push('/login');
     } else {
       router.push(href);
-    }
-  };
-
-  const connectWallet = async () => {
-    try {
-      if (typeof window.ethereum !== "undefined") {
-        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-        const address = accounts[0];
-        setConnectedAddress(address);
-        localStorage.setItem("userWalletAddress", address);
-      } else {
-        alert("MetaMask not found. Please install it to connect your wallet.");
-      }
-    } catch (error) {
-      console.error("Wallet connection failed", error);
     }
   };
 
@@ -72,13 +59,6 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
       console.error("Failed to copy address:", err);
     }
   };
-
-  useEffect(() => {
-    const storedAddress = localStorage.getItem("userWalletAddress");
-    if (storedAddress) {
-      setConnectedAddress(storedAddress);
-    }
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -147,7 +127,7 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
           </div>
         ) : (
           <button
-            onClick={connectWallet}
+            onClick={() => router.push('/login')}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md text-sm font-medium transition-colors duration-200"
           >
             Connect Wallet
@@ -169,3 +149,4 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
     </div>
   );
 }
+
