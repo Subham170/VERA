@@ -1,40 +1,51 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
+// Extend Window interface to include ethereum
+declare global {
+  interface Window {
+    ethereum?: {
+      request: (args: { method: string }) => Promise<string[]>;
+    };
+  }
+}
+
 import { LoginCard } from "@/components/custom/login-card";
-import toast, { Toaster } from 'react-hot-toast';
-import { getAddress } from 'ethers';
+import { useAuth } from "@/context/AuthContext";
+import { getAddress } from "ethers";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function LoginPage() {
   const { isAuthorized, login, isLoading: isAuthLoading } = useAuth();
   const router = useRouter();
 
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState("");
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthLoading && isAuthorized) {
-      router.push('/');
+      router.push("/");
     }
   }, [isAuthorized, isAuthLoading, router]);
 
   const handleConnectWallet = async () => {
-    if (typeof window.ethereum === 'undefined') {
-      toast.error('MetaMask is not installed.');
+    if (typeof window.ethereum === "undefined") {
+      toast.error("MetaMask is not installed.");
       return;
     }
     setIsLoading(true);
-    const toastId = toast.loading('Connecting wallet...');
+    const toastId = toast.loading("Connecting wallet...");
     try {
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const accounts = await window.ethereum.request({
+        method: "eth_requestAccounts",
+      });
       const checksummedAddress = getAddress(accounts[0]);
       setConnectedAddress(checksummedAddress);
-      toast.success('Wallet connected!', { id: toastId });
+      toast.success("Wallet connected!", { id: toastId });
     } catch (err) {
-      toast.error('Failed to connect wallet.', { id: toastId });
+      toast.error("Failed to connect wallet.", { id: toastId });
     } finally {
       setIsLoading(false);
     }
@@ -42,36 +53,37 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     if (!username || !connectedAddress) {
-      toast.error('Please enter your username and connect your wallet.');
+      toast.error("Please enter your username and connect your wallet.");
       return;
     }
     setIsLoading(true);
-    const toastId = toast.loading('Verifying user...');
+    const toastId = toast.loading("Verifying user...");
 
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${connectedAddress}`);
+      const response = await fetch(
+        `http://localhost:5000/api/users/${connectedAddress}`
+      );
 
       if (!response.ok) {
         if (response.status === 404) {
-          throw new Error('User not found. Please sign up first.');
+          throw new Error("User not found. Please sign up first.");
         }
-        throw new Error('Login failed. Please try again.');
+        throw new Error("Login failed. Please try again.");
       }
 
       const userData = await response.json();
       if (getAddress(userData.data.user.address) !== connectedAddress) {
-         throw new Error('Address does not match the connected wallet address.');
+        throw new Error("Address does not match the connected wallet address.");
       }
-      
-      login(userData); 
-      toast.success('Login successful! Redirecting...', { id: toastId });
-      
-      setTimeout(() => {
-        router.push('/');
-      }, 1000);
 
+      login(userData);
+      toast.success("Login successful! Redirecting...", { id: toastId });
+
+      setTimeout(() => {
+        router.push("/");
+      }, 1000);
     } catch (err: any) {
-      toast.error(err.message || 'An unknown error occurred.', { id: toastId });
+      toast.error(err.message || "An unknown error occurred.", { id: toastId });
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -79,9 +91,7 @@ export default function LoginPage() {
   };
 
   if (isAuthLoading || isAuthorized) {
-    return (
-        <div className="relative min-h-dvh overflow-hidden bg-gray-900" />
-    );
+    return <div className="relative min-h-dvh overflow-hidden bg-gray-900" />;
   }
 
   return (
@@ -96,7 +106,7 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
         <section className="relative mx-[7%] flex min-h-dvh max-w-7xl items-center justify-end px-4">
           <div className="w-full max-w-md">
-            <LoginCard 
+            <LoginCard
               username={username}
               onUsernameChange={setUsername}
               connectedAddress={connectedAddress}
