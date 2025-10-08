@@ -2,7 +2,6 @@
 
 import { ProfileDropdown } from "@/components/custom/layouts/profile-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { Bell, Grid2X2, Search, Sparkles } from "lucide-react";
@@ -117,27 +116,46 @@ export default function SiteNavbar() {
         )}
 
         <div className="flex items-center gap-2">
-          <Button
+          <button
             onClick={handleCreateTag}
-            className="rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-all duration-200 shadow-md hover:shadow-lg cursor-pointer"
-            size="sm"
+            className={cn(
+              "hidden sm:inline-flex h-9 items-center rounded-full px-3 text-sm transition-all duration-200 hover:scale-105 cursor-pointer",
+              pathname === "/create-tag"
+                ? "bg-blue-600 text-white font-semibold shadow-md"
+                : "text-white hover:text-blue-400"
+            )}
           >
             Create tag
-          </Button>
+          </button>
 
           <Link
             href="/explore"
-            className="hidden sm:inline-flex h-9 items-center rounded-full px-3 text-sm text-white hover:text-blue-400 transition-all duration-200 hover:scale-105 cursor-pointer"
+            className={cn(
+              "hidden sm:inline-flex h-9 items-center rounded-full px-3 text-sm transition-all duration-200 hover:scale-105 cursor-pointer",
+              pathname === "/explore"
+                ? "bg-blue-600 text-white font-semibold shadow-md"
+                : "text-white hover:text-blue-400"
+            )}
           >
             Explore
           </Link>
 
           <Link
             href="/upgrade"
-            className="hidden md:inline-flex h-9 items-center gap-1 rounded-full px-3 text-sm text-white hover:text-blue-400 transition-all duration-200 hover:scale-105 cursor-pointer group"
+            className={cn(
+              "hidden md:inline-flex h-9 items-center gap-1 rounded-full px-3 text-sm transition-all duration-200 hover:scale-105 cursor-pointer group",
+              pathname === "/upgrade"
+                ? "bg-blue-600 text-white font-semibold shadow-md"
+                : "text-white hover:text-blue-400"
+            )}
           >
             <Sparkles
-              className="size-4 text-blue-500 group-hover:text-blue-400 transition-colors duration-200"
+              className={cn(
+                "size-4 transition-colors duration-200",
+                pathname === "/upgrade"
+                  ? "text-white"
+                  : "text-blue-500 group-hover:text-blue-400"
+              )}
               aria-hidden
             />
             <span>Upgrade</span>
