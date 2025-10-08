@@ -51,6 +51,7 @@ export default function CreateTagPage() {
   const [isDetecting, setIsDetecting] = useState(false);
   const [deepfakeWarning, setDeepfakeWarning] = useState<string | null>(null);
   const [preparedData, setPreparedData] = useState<PreparedData | null>(null);
+  const [isHighDeepfakeDetected, setIsHighDeepfakeDetected] = useState(false);
 
   useEffect(() => {
     if (!isAuthLoading && !isAuthorized) {
@@ -65,6 +66,7 @@ export default function CreateTagPage() {
       setFileName(selectedFile.name);
       setPreparedData(null);
       setDeepfakeWarning(null);
+      setIsHighDeepfakeDetected(false);
     }
   };
 
@@ -78,6 +80,7 @@ export default function CreateTagPage() {
     setIsDetecting(true);
     setDeepfakeWarning(null);
     setPreparedData(null);
+    setIsHighDeepfakeDetected(false);
 
     try {
       const formData = new FormData();
@@ -95,9 +98,17 @@ export default function CreateTagPage() {
 
       const detectionResult: DetectionResult = await response.json();
 
-      if (detectionResult.deepfake_probability > 50) {
+      // Check for high deepfake probability (70% or higher)
+      if (detectionResult.deepfake_probability >= 70) {
+        setIsHighDeepfakeDetected(true);
         setDeepfakeWarning(
-          `Warning: AI analysis indicates a high probability (${detectionResult.deepfake_probability}%) that this media is a deepfake. Please review the full report carefully before proceeding.`
+          `High deepfake probability detected (${detectionResult.deepfake_probability}%). This media appears to be artificially generated. Please try uploading a different media file.`
+        );
+        toast.error("High deepfake probability detected. Please try another media file.");
+        return; // Don't proceed to prepare data
+      } else if (detectionResult.deepfake_probability > 50) {
+        setDeepfakeWarning(
+          `Warning: AI analysis indicates a moderate probability (${detectionResult.deepfake_probability}%) that this media is a deepfake. Please review the full report carefully before proceeding.`
         );
       }
 
@@ -358,20 +369,50 @@ export default function CreateTagPage() {
           </div>
 
           {deepfakeWarning && (
-            <div className="max-w-2xl mx-auto mt-6 p-4 bg-red-900/50 border border-red-500/60 rounded-lg flex items-start space-x-4">
-              <ShieldAlert className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
+            <div className={`max-w-2xl mx-auto mt-6 p-4 border rounded-lg flex items-start space-x-4 ${
+              isHighDeepfakeDetected 
+                ? "bg-red-900/50 border-red-500/60" 
+                : "bg-yellow-900/50 border-yellow-500/60"
+            }`}>
+              <ShieldAlert className={`w-6 h-6 flex-shrink-0 mt-1 ${
+                isHighDeepfakeDetected ? "text-red-400" : "text-yellow-400"
+              }`} />
               <div>
-                <h4 className="font-bold text-red-300">
-                  High Deepfake Probability Detected
+                <h4 className={`font-bold mt-1 ${
+                  isHighDeepfakeDetected ? "text-red-300" : "text-yellow-300"
+                }`}>
+                  {isHighDeepfakeDetected ? "Deepfake Detected - Upload Blocked" : "Moderate Deepfake Risk"}
                 </h4>
-                <p className="text-sm text-red-300/80 mt-1">
+                <p className={`text-sm mt-1 ${
+                  isHighDeepfakeDetected ? "text-red-300/80" : "text-yellow-300/80"
+                }`}>
                   {deepfakeWarning}
                 </p>
+                {isHighDeepfakeDetected && (
+                  <div className="mt-3">
+                    <button
+                      onClick={() => {
+                        setFile(null);
+                        setFileName("");
+                        setDescription("");
+                        setPreparedData(null);
+                        setDeepfakeWarning(null);
+                        setIsHighDeepfakeDetected(false);
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = "";
+                        }
+                      }}
+                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Try Another Media
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {preparedData && !isDetecting && (
+          {preparedData && !isDetecting && !isHighDeepfakeDetected && (
             <div className="max-w-2xl mx-auto mt-6 p-4 bg-green-900/50 border border-green-500/60 rounded-lg flex items-center space-x-4">
               <CheckCircle className="w-6 h-6 text-green-400 flex-shrink-0" />
               <p className="text-sm text-green-300 font-medium">
@@ -380,20 +421,22 @@ export default function CreateTagPage() {
             </div>
           )}
 
-          <div className="max-w-2xl mx-auto mt-6">
-            <button
-              onClick={handleProceedToReview}
-              disabled={!preparedData || isDetecting}
-              className={`w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] ${
-                !preparedData || isDetecting
-                  ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                  : "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl hover:shadow-green-500/25"
-              }`}
-            >
-              <span>Continue to Review</span>
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </button>
-          </div>
+          {!isHighDeepfakeDetected && (
+            <div className="max-w-2xl mx-auto mt-6">
+              <button
+                onClick={handleProceedToReview}
+                disabled={!preparedData || isDetecting || isHighDeepfakeDetected}
+                className={`w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] ${
+                  !preparedData || isDetecting || isHighDeepfakeDetected
+                    ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl hover:shadow-green-500/25"
+                }`}
+              >
+                <span>Continue to Review</span>
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </button>
+            </div>
+          )}
         </div>
       </main>
       <Toaster
