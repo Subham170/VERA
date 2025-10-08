@@ -4,7 +4,7 @@ import { ProfileDropdown } from "@/components/custom/layouts/profile-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
-import { Bell, Grid2X2, Search, Sparkles } from "lucide-react";
+import {  Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -161,7 +161,7 @@ export default function SiteNavbar() {
             <span>Upgrade</span>
           </Link>
 
-          <button
+          {/* <button
             aria-label="Apps"
             className="grid size-9 place-items-center rounded-lg bg-[#2E3137] ring-1 ring-gray-600 hover:bg-[#3A3D45] hover:ring-blue-400/50 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md"
           >
@@ -173,7 +173,7 @@ export default function SiteNavbar() {
             className="grid size-9 place-items-center rounded-lg bg-[#2E3137] ring-1 ring-gray-600 hover:bg-[#3A3D45] hover:ring-blue-400/50 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md"
           >
             <Bell className="size-5 text-gray-400 hover:text-white transition-colors duration-200" />
-          </button>
+          </button> */}
 
           <div className="relative">
             <button

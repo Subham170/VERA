@@ -1,21 +1,21 @@
 "use client";
 
-import { useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import {
-  User,
-  Pencil,
-  Tag,
-  Sparkles,
   BookOpen,
-  HelpCircle,
-  Settings,
-  Globe,
-  LogOut,
   ChevronDown,
   Copy,
+  Globe,
+  HelpCircle,
+  LogOut,
+  Pencil,
+  Settings,
+  Sparkles,
+  Tag,
+  User,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 interface ProfileDropdownProps {
   isOpen: boolean;
@@ -23,7 +23,11 @@ interface ProfileDropdownProps {
   triggerRef: React.RefObject<HTMLButtonElement | null>;
 }
 
-export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdownProps) {
+export function ProfileDropdown({
+  isOpen,
+  onClose,
+  triggerRef,
+}: ProfileDropdownProps) {
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
@@ -45,7 +49,7 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
     onClose();
     if (href === "/login") {
       logout();
-      router.push('/login');
+      router.push("/login");
     } else {
       router.push(href);
     }
@@ -81,12 +85,14 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
     };
   }, [isOpen, onClose, triggerRef]);
 
-  if (!isOpen) return null;
-
   return (
     <div
       ref={dropdownRef}
-      className="absolute right-0 top-full mt-2 w-64 bg-[#181A1D] rounded-lg shadow-xl border border-gray-700 z-100"
+      className={`absolute right-0 top-full mt-2 w-64 bg-[#181A1D]/95 backdrop-blur-md rounded-lg shadow-xl border border-gray-700/50 z-100 transition-all duration-300 ease-out ${
+        isOpen
+          ? "opacity-100 translate-y-0 scale-100"
+          : "opacity-0 -translate-y-2 scale-95 pointer-events-none"
+      }`}
     >
       <div className="p-2">
         {menuItems.map((item, index) => {
@@ -95,58 +101,77 @@ export function ProfileDropdown({ isOpen, onClose, triggerRef }: ProfileDropdown
             <button
               key={index}
               onClick={() => handleItemClick(item.href)}
-              className="w-full flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D2D30] rounded-md transition-colors duration-200"
+              className={`w-full flex items-center gap-3 px-3 py-2.5 text-white hover:bg-[#2D2D30] rounded-md transition-all duration-200 hover:scale-[1.02] hover:shadow-sm group ${
+                isOpen ? "animate-in slide-in-from-top-2 fade-in" : ""
+              }`}
+              style={{
+                animationDelay: `${index * 50}ms`,
+                animationFillMode: "both",
+              }}
             >
-              <Icon className="h-4 w-4" />
-              <span className="text-sm">{item.label}</span>
+              <Icon className="h-4 w-4 transition-colors duration-200 group-hover:text-blue-400" />
+              <span className="text-sm transition-colors duration-200 group-hover:text-blue-100">
+                {item.label}
+              </span>
             </button>
           );
         })}
       </div>
 
-      <div className="mx-2 mb-2 p-3 bg-[#2D2D30] rounded-lg">
+      <div
+        className={`mx-2 mb-2 p-3 bg-[#2D2D30]/80 backdrop-blur-sm rounded-lg transition-all duration-300 ${
+          isOpen ? "animate-in slide-in-from-bottom-2 fade-in" : ""
+        }`}
+        style={{ animationDelay: "200ms", animationFillMode: "both" }}
+      >
         {connectedAddress ? (
           <div className="flex items-center gap-3">
             <img
               src="/images/wallets/meta-mask.png"
               alt="MetaMask"
-              className="h-5 w-5"
+              className="h-5 w-5 transition-transform duration-200 hover:scale-110"
             />
-            <span className="text-sm text-white font-mono">
+            <span className="text-sm text-white font-mono transition-colors duration-200 hover:text-blue-100">
               {connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}
             </span>
             <button
               onClick={copyAddress}
-              className="ml-auto p-1 hover:bg-[#3D3D40] rounded transition-colors duration-200"
+              className="ml-auto p-1.5 hover:bg-[#3D3D40] rounded-md transition-all duration-200 hover:scale-110 group"
             >
-              <Copy className="h-3 w-3 text-gray-400" />
+              <Copy className="h-3 w-3 text-gray-400 transition-colors duration-200 group-hover:text-blue-400" />
             </button>
-            <button className="p-1 hover:bg-[#3D3D40] rounded transition-colors duration-200">
-              <ChevronDown className="h-3 w-3 text-gray-400" />
+            <button className="p-1.5 hover:bg-[#3D3D40] rounded-md transition-all duration-200 hover:scale-110 group">
+              <ChevronDown className="h-3 w-3 text-gray-400 transition-colors duration-200 group-hover:text-blue-400" />
             </button>
           </div>
         ) : (
           <button
-            onClick={() => router.push('/login')}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md text-sm font-medium transition-colors duration-200"
+            onClick={() => router.push("/login")}
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-2.5 rounded-md text-sm font-medium transition-all duration-200 hover:scale-[1.02] hover:shadow-lg shadow-blue-500/25"
           >
             Connect Wallet
           </button>
         )}
       </div>
 
-      <div className="mx-2 mb-2 p-3 bg-[#2D2D30] rounded-lg">
+      <div
+        className={`mx-2 mb-2 p-3 bg-[#2D2D30]/80 backdrop-blur-sm rounded-lg transition-all duration-300 ${
+          isOpen ? "animate-in slide-in-from-bottom-2 fade-in" : ""
+        }`}
+        style={{ animationDelay: "250ms", animationFillMode: "both" }}
+      >
         <div className="flex items-center gap-3">
-          <div className="h-5 w-5 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
+          <div className="h-5 w-5 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center transition-transform duration-200 hover:scale-110 hover:rotate-12">
             <span className="text-xs font-bold text-white">Ξ</span>
           </div>
-          <span className="text-sm text-white">Ethereum $0.50 USD</span>
-          <button className="ml-auto p-1 hover:bg-[#3D3D40] rounded transition-colors duration-200">
-            <ChevronDown className="h-3 w-3 text-gray-400" />
+          <span className="text-sm text-white transition-colors duration-200 hover:text-blue-100">
+            Ethereum $0.50 USD
+          </span>
+          <button className="ml-auto p-1.5 hover:bg-[#3D3D40] rounded-md transition-all duration-200 hover:scale-110 group">
+            <ChevronDown className="h-3 w-3 text-gray-400 transition-colors duration-200 group-hover:text-blue-400" />
           </button>
         </div>
       </div>
     </div>
   );
 }
-
