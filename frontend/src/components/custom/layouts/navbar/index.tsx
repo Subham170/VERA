@@ -3,6 +3,7 @@
 import { ProfileDropdown } from "@/components/custom/layouts/profile-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { Bell, Grid2X2, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
@@ -68,14 +69,21 @@ function SearchInput() {
 export default function SiteNavbar() {
   const router = useRouter();
   const pathname = usePathname();
+  const { isAuthorized, isLoading } = useAuth();
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Don't render navbar if user is not authenticated or still loading
+  if (isLoading || !isAuthorized) {
+    return null;
+  }
 
   // Define routes where search bar should be hidden
   const hideSearchBarRoutes = [
     "/create-tag",
     "/review-tag",
     "/login",
+    "/explore",
     "/profile",
     "/profile/edit",
   ];
