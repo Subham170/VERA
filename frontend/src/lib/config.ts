@@ -1,6 +1,6 @@
 // Backend API configuration
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+  process.env.NEXT_PUBLIC_BACKEND_URL || "https://vera-7ug6.onrender.com";
 
 // API endpoints
 export const API_ENDPOINTS = {

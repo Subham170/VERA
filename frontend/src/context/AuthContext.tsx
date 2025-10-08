@@ -26,12 +26,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const savedUserJSON = localStorage.getItem('userSession');
       if (savedUserJSON) {
-        const savedUser = JSON.parse(savedUserJSON);
-        // Add a validation check to ensure the data from localStorage is valid
-        if (savedUser && savedUser.address) {
-          setUser(savedUser);
+        const savedData = JSON.parse(savedUserJSON);
+        
+        // Handle both old format (full API response) and new format (user object)
+        let userData;
+        if (savedData.data && savedData.data.user) {
+          // Old format: full API response with nested user data
+          userData = {
+            address: savedData.data.user.address,
+            username: savedData.data.user.username,
+            email: savedData.data.user.email,
+          };
+        } else if (savedData.address) {
+          // New format: direct user object
+          userData = savedData;
         } else {
-          // If data is invalid or doesn't have an address, clear it
+          // Invalid data format
+          localStorage.removeItem('userSession');
+          setIsLoading(false);
+          return;
+        }
+        
+        // Validate the user data
+        if (userData && userData.address && userData.username && userData.email) {
+          setUser(userData);
+        } else {
+          // If data is invalid, clear it
           localStorage.removeItem('userSession');
         }
       }

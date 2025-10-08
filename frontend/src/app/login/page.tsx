@@ -77,7 +77,14 @@ export default function LoginPage() {
         throw new Error("Address does not match the connected wallet address.");
       }
 
-      login(userData);
+      // Extract user data from the API response and pass to login function
+      const user = {
+        address: userData.data.user.address,
+        username: userData.data.user.username,
+        email: userData.data.user.email,
+      };
+      
+      login(user);
       toast.success("Login successful! Redirecting...", { id: toastId });
 
       setTimeout(() => {
@@ -89,6 +96,10 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleNavigateToSignup = () => {
+    router.push("/signup");
   };
 
   if (isAuthLoading || isAuthorized) {
@@ -113,6 +124,7 @@ export default function LoginPage() {
               connectedAddress={connectedAddress}
               onConnectWallet={handleConnectWallet}
               onLogin={handleLogin}
+              onNavigateToSignup={handleNavigateToSignup}
               isLoading={isLoading}
             />
           </div>

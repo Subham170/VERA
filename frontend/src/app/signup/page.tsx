@@ -70,7 +70,15 @@ export default function SignUpPage() {
       }
 
       const newUser = await response.json();
-      login(newUser);
+      
+      // Extract user data from the API response and pass to login function
+      const user = {
+        address: newUser.data.user.address,
+        username: newUser.data.user.username,
+        email: newUser.data.user.email,
+      };
+      
+      login(user);
 
       toast.success("Account created successfully! Redirecting...", {
         id: toastId,
@@ -85,6 +93,10 @@ export default function SignUpPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleNavigateToLogin = () => {
+    router.push("/login");
   };
 
   if (isAuthLoading || isAuthorized) {
@@ -111,6 +123,7 @@ export default function SignUpPage() {
               connectedAddress={connectedAddress}
               onConnectWallet={handleConnectWallet}
               onSignUp={handleSignUp}
+              onNavigateToLogin={handleNavigateToLogin}
               isLoading={isLoading}
             />
           </div>

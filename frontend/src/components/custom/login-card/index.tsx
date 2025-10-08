@@ -10,6 +10,7 @@ interface LoginCardProps {
   connectedAddress: string | null;
   onConnectWallet: () => void;
   onLogin: () => void;
+  onNavigateToSignup: () => void;
   isLoading: boolean;
 }
 
@@ -19,6 +20,7 @@ export function LoginCard({
   connectedAddress,
   onConnectWallet,
   onLogin,
+  onNavigateToSignup,
   isLoading,
 }: LoginCardProps) {
 
@@ -64,7 +66,7 @@ export function LoginCard({
           </Button>
         )}
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex flex-col space-y-3">
         <Button
           onClick={onLogin}
           disabled={!username || !connectedAddress || isLoading}
@@ -73,6 +75,16 @@ export function LoginCard({
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isLoading ? "Verifying..." : "Login"}
         </Button>
+        
+        <div className="text-center">
+          <span className="text-sm text-white/70">Don't have an account? </span>
+          <button
+            onClick={onNavigateToSignup}
+            className="text-sm text-blue-400 hover:text-blue-300 underline transition-colors cursor-pointer"
+          >
+            Sign up
+          </button>
+        </div>
       </CardFooter>
     </Card>
   );
