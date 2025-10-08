@@ -12,17 +12,16 @@ type Props = {
   address: string
   coverSrc: string
   avatarSrc: string
-  bio:any
+  bio: any
 }
 
-export function ProfileHeader({ name, handle, address, coverSrc, avatarSrc ,bio}: Props) {
+export function ProfileHeader({ name, handle, address, coverSrc, avatarSrc, bio }: Props) {
   const router = useRouter();
 
   const copyAddress = async () => {
     try {
       await navigator.clipboard.writeText(address)
     } catch {
-      // silent fail in preview
     }
   }
 
@@ -69,9 +68,6 @@ export function ProfileHeader({ name, handle, address, coverSrc, avatarSrc ,bio}
         </div>
 
         <div className="mt-3 space-y-2 text-sm text-gray-400">
-          <p>
-            Created by <span className="text-white">{name}</span>
-          </p>
           <div className="flex items-center gap-2">
             <span className="text-gray-400">Address:</span>
             <span className="truncate text-white" aria-label="wallet address">
@@ -82,13 +78,10 @@ export function ProfileHeader({ name, handle, address, coverSrc, avatarSrc ,bio}
             </Button>
           </div>
         </div>
-
-        <ul className="mt-4 grid gap-2 text-sm text-white">
-             <li className="flex items-start gap-2">
-              <span className={cn("mt-1 h-1.5 w-1.5 rounded-full bg-muted-foreground/70 text-white")} />
-              <span className="text-pretty">{bio}</span>
-            </li>
-        </ul>
+        <div className ="mt-4">
+          <span className={cn("mt-1 h-1.5 w-1.5 rounded-full bg-muted-foreground/70 text-white")} />
+          <span className="text-pretty">{bio}</span>
+        </div>
       </div>
     </header>
   )

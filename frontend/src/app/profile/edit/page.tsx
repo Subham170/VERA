@@ -45,8 +45,8 @@ export default function EditProfilePage() {
       const savedUserJSON = localStorage.getItem("userSession");
       if (savedUserJSON) {
         const savedUser = JSON.parse(savedUserJSON);
-        if (savedUser && savedUser.data?.user?.address) {
-          userSessionAddress = savedUser.data.user.address;
+        if (savedUser && savedUser.address) {
+          userSessionAddress = savedUser.address;
           setConnectedAddress(userSessionAddress);
         }
       }
@@ -78,7 +78,6 @@ export default function EditProfilePage() {
       }
     };
     fetchUserData(userSessionAddress);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleFileChange = (
@@ -114,7 +113,6 @@ export default function EditProfilePage() {
       let profile_img = null;
       let banner_url = null;
 
-      // First, upload images if they exist and get the URLs
       if (profileImageFile) {
         const profileFormData = new FormData();
         profileFormData.append("profile_img", profileImageFile);
@@ -155,7 +153,6 @@ export default function EditProfilePage() {
         banner_url = bannerData.url;
       }
 
-      // Now update the profile with all data including image URLs
       const updateData: any = { username, bio, email };
       if (profile_img) updateData.profile_img = profile_img;
       if (banner_url) updateData.banner_url = banner_url;

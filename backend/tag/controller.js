@@ -8,6 +8,8 @@ export const createTag = async (req, res) => {
       file_name,
       description,
       hash_address,
+      mediacid,
+      metadatacid,
       address,
       type,
       img_urls = [],
@@ -17,7 +19,7 @@ export const createTag = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!file_name || !hash_address || !address || !type) {
+    if (!file_name || !hash_address || !address || !type || !mediacid || !metadatacid) {
       return res.status(400).json({
         status: "error",
         message: "file_name, hash_address, address, and type are required",
@@ -67,6 +69,8 @@ export const createTag = async (req, res) => {
       file_name,
       description,
       hash_address,
+      mediacid,
+      metadatacid,
       address,
       type,
       img_urls,
@@ -74,7 +78,6 @@ export const createTag = async (req, res) => {
       audio_urls,
       file_size,
     });
-
     await tag.save();
 
     res.status(201).json({
@@ -86,6 +89,8 @@ export const createTag = async (req, res) => {
           file_name: tag.file_name,
           description: tag.description,
           hash_address: tag.hash_address,
+          metadatacid:tag.metadatacid,
+          mediacid:tag.mediacid,
           address: tag.address,
           type: tag.type,
           img_urls: tag.img_urls,
@@ -215,6 +220,8 @@ export const getTagById = async (req, res) => {
           file_name: tag.file_name,
           description: tag.description,
           hash_address: tag.hash_address,
+          metadatacid:tag.metadatacid,
+          mediacid:tag.mediacid,
           address: tag.address,
           type: tag.type,
           img_urls: tag.img_urls,
@@ -267,6 +274,8 @@ export const getTagByHash = async (req, res) => {
           file_name: tag.file_name,
           description: tag.description,
           hash_address: tag.hash_address,
+          metadatacid:tag.metadatacid,
+          mediacid:tag.mediacid,
           address: tag.address,
           type: tag.type,
           img_urls: tag.img_urls,
@@ -429,6 +438,8 @@ export const updateTag = async (req, res) => {
           file_name: updatedTag.file_name,
           description: updatedTag.description,
           hash_address: updatedTag.hash_address,
+          metadatacid:updatedTag.metadatacid,
+          mediacid:updatedTag.mediacid,
           address: updatedTag.address,
           type: updatedTag.type,
           img_urls: updatedTag.img_urls,

@@ -50,6 +50,20 @@ const tagSchema = new mongoose.Schema(
       trim: true,
       maxlength: [200, "Hash address cannot be more than 200 characters"],
     },
+    mediacid: {
+      type: String,
+      required: [true, "Hash address is required"],
+      unique: true,
+      trim: true,
+      maxlength: [200, "Hash address cannot be more than 200 characters"],
+    },
+    metadatacid: {
+      type: String,
+      required: [true, "Hash address is required"],
+      unique: true,
+      trim: true,
+      maxlength: [200, "Hash address cannot be more than 200 characters"],
+    },
     address: {
       type: String,
       required: [true, "User address is required"],

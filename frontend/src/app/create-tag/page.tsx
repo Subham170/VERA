@@ -2,7 +2,7 @@
 
 import AuthenticatedLayout from "@/components/custom/layouts/authenticated-layout";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL } from "@/lib/config";
+import { API_ENDPOINTS ,API_BASE_URL } from "@/lib/config";
 import {
   ArrowRight,
   Check,
@@ -25,7 +25,7 @@ const ABI = [
   "error MediaNotFound(bytes32 contentHash)",
 ];
 
-const CONTRACT_ADDRESS = "0x6Aa81Da4f2505F545370a5fC6DAceecD2B9F29E6";
+const CONTRACT_ADDRESS = "0xc8DfF35746db2604b9feEEb48828d9F721D24530";
 
 function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   return new ethers.Contract(CONTRACT_ADDRESS, ABI, signerOrProvider);
@@ -70,17 +70,16 @@ async function uploadFileToPinata(file: File): Promise<string> {
 }
 
 function base64ToFile(base64: string, fileName: string): File {
-    const arr = base64.split(",");
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    if (!mimeMatch) throw new Error("Invalid Base64 string: MIME type not found.");
-    const mime = mimeMatch[1];
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) u8arr[n] = bstr.charCodeAt(n);
-    return new File([u8arr], fileName, { type: mime });
+  const arr = base64.split(",");
+  const mimeMatch = arr[0].match(/:(.*?);/);
+  if (!mimeMatch) throw new Error("Invalid Base64 string: MIME type not found.");
+  const mime = mimeMatch[1];
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) u8arr[n] = bstr.charCodeAt(n);
+  return new File([u8arr], fileName, { type: mime });
 }
-
 
 interface DetectionResult {
   media_type: string;
@@ -175,14 +174,8 @@ export default function CreateTagPage() {
 
   const handleAnalysis = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!file) {
-      toast.error("Please select a file to analyze.");
-      return;
-    }
-    if (!isVerified) {
-      toast.error("Please verify the file's uniqueness on-chain first.");
-      return;
-    }
+    if (!file) return toast.error("Please select a file to analyze.");
+    if (!isVerified) return toast.error("Please verify the file's uniqueness on-chain first.");
 
     setIsDetecting(true);
     setDeepfakeWarning(null);
@@ -272,22 +265,51 @@ export default function CreateTagPage() {
     if (typeof window.ethereum === "undefined") return toast.error("MetaMask is not installed.");
 
     setIsRegistering(true);
-    const toastId = toast.loading("Uploading files to IPFS...");
+    const toastId = toast.loading("Starting registration process...");
 
     try {
       const tagData = JSON.parse(tagDataRaw);
       const mediaFile = base64ToFile(tagData.filePreview, tagData.name);
       const metadataFile = new File([metadataRaw], "metadata.json", { type: "application/json" });
-      
+
+      toast.loading("Uploading files to IPFS...", { id: toastId });
       const [mediaCid, metadataCid, contentHash] = await Promise.all([
         uploadFileToPinata(mediaFile),
         uploadFileToPinata(metadataFile),
         generateSha256Hash(mediaFile)
       ]);
       
-      toast.loading("Awaiting on-chain registration...", { id: toastId });
+      toast.loading("Saving record to database...", { id: toastId });
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
+      const walletAddress = await signer.getAddress();
+      
+      const mediaType = tagData.mediaType || "image";
+      const fileFieldName = `${mediaType}s`;
+
+      const routeMap = {
+        images: API_ENDPOINTS.TAGS_WITH_IMAGES,
+        videos: API_ENDPOINTS.TAGS_WITH_VIDEOS,
+        audios: API_ENDPOINTS.TAGS_WITH_AUDIO,
+      };
+      const route = routeMap[fileFieldName] || API_ENDPOINTS.TAGS;
+
+      const backendFormData = new FormData();
+      backendFormData.append(fileFieldName, mediaFile);
+      backendFormData.append("file_name", tagData.name);
+      backendFormData.append("hash_address", contentHash);
+      backendFormData.append("mediacid", mediaCid);
+      backendFormData.append("metadatacid", metadataCid);
+      backendFormData.append("address", walletAddress);
+      backendFormData.append("type", mediaType === 'image' ? 'img' : mediaType);
+      console.log(backendFormData.get("mediacid"));
+      const backendRes = await fetch(route, { method: "POST", body: backendFormData });
+      if (!backendRes.ok) {
+        const errorData = await backendRes.json();
+        throw new Error(errorData.message || "Failed to save to database.");
+      }
+
+      toast.loading("Awaiting on-chain confirmation...", { id: toastId });
       const contract = getEthersContract(signer);
       const formattedHash = '0x' + contentHash;
 
@@ -300,12 +322,11 @@ export default function CreateTagPage() {
       router.push("/");
     } catch (err: any) {
         console.error("Registration error:", err);
-        toast.error(err.reason || err.message || "An unexpected error occurred during registration.", { id: toastId });
+        toast.error(err.reason || err.message || "An unexpected error occurred.", { id: toastId });
     } finally {
         setIsRegistering(false);
     }
   };
-
 
   const handleCancel = () => {
     router.push("/");
@@ -335,7 +356,7 @@ export default function CreateTagPage() {
                   <div className="absolute inset-0 w-20 h-20 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
               </div>
               <h3 className="text-xl font-bold text-white">
-                {isVerifying ? "Verifying on Chain..." : isDetecting ? "Analyzing Media..." : "Registering..."}
+                {isVerifying ? "Verifying..." : isDetecting ? "Analyzing..." : "Registering..."}
               </h3>
             </div>
           </div>

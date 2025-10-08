@@ -45,7 +45,7 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Fetch user tags once user is authenticated
+ 
   useEffect(() => {
     const fetchUserTags = async () => {
       setTagsLoading(true);
@@ -66,11 +66,10 @@ export default function Home() {
         }
 
         const checksummedAddress = getAddress(accounts[0]);
-        const res = await fetch(API_ENDPOINTS.TAGS_USER(checksummedAddress));
+        const res = await fetch(API_ENDPOINTS.TAGS);
         if (!res.ok) throw new Error("Failed to fetch user tags.");
 
         const tagsData = await res.json();
-        console.log(tagsData);
         setUserTags(tagsData?.data.tags || []);
       } catch (err: any) {
         console.error("Failed to fetch tags:", err);
