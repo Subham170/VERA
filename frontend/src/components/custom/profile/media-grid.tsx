@@ -1,6 +1,6 @@
-import { MediaCard } from "./media-card";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
+import { MediaCard } from "./media-card";
 
 interface TagItem {
   _id: string;
@@ -28,14 +28,16 @@ export function MediaGrid({ mediaItems = [] }: MediaGridProps) {
           priority
         />
         <p className="text-sm text-gray-400">{`You have no tags created yet. You'll see all created tags here.`}</p>
-        <Button className="mt-4 bg-blue-600 text-white hover:bg-blue-700 px-6 py-2 transition-all duration-200 shadow-lg hover:shadow-xl">Create tag</Button>
+        <Button className="mt-4 bg-blue-600 text-white hover:bg-blue-700 px-6 py-2 transition-all duration-200 shadow-lg hover:shadow-xl">
+          Create tag
+        </Button>
       </div>
     );
   }
 
-  const mappedItems = mediaItems.map(tag => {
+  const mappedItems = mediaItems.map((tag) => {
     let thumbnail = "";
-    switch(tag.type) {
+    switch (tag.type) {
       case "img":
         thumbnail = tag.img_urls?.[0] || "/images/placeholder.png";
         break;
@@ -59,9 +61,18 @@ export function MediaGrid({ mediaItems = [] }: MediaGridProps) {
   });
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {mappedItems.map(item => (
-        <MediaCard key={item.id} item={item} />
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {mappedItems.map((item, index) => (
+        <div
+          key={item.id}
+          className="animate-in fade-in slide-in-from-bottom-4"
+          style={{
+            animationDelay: `${index * 100}ms`,
+            animationFillMode: "both",
+          }}
+        >
+          <MediaCard item={item} />
+        </div>
       ))}
     </div>
   );

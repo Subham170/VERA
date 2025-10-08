@@ -1,50 +1,105 @@
-"use client"
-import Image from "next/image"
-import { Button } from "@/components/ui/button"
+"use client";
+import { Button } from "@/components/ui/button";
+import { Clock, Eye, FileText, Shield } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 type Media = {
-  id: string
-  title: string
-  handle: string
-  href?: string
-  thumbnail: string
-}
+  id: string;
+  title: string;
+  handle: string;
+  href?: string;
+  thumbnail: string;
+  type?: string;
+};
 
 export function MediaCard({ item }: { item: Media }) {
   const router = useRouter();
+  const [isHovered, setIsHovered] = useState(false);
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case "img":
+        return <FileText className="w-3 h-3" />;
+      case "video":
+        return <Eye className="w-3 h-3" />;
+      case "audio":
+        return <Clock className="w-3 h-3" />;
+      default:
+        return <FileText className="w-3 h-3" />;
+    }
+  };
 
   return (
-    <div className="bg-[#45484E] rounded-lg overflow-hidden hover:scale-105 transition-transform duration-200">
+    <div
+      className="group relative bg-[#2E3137]/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl overflow-hidden hover:scale-[1.02] transition-all duration-300 hover:border-blue-500/30 hover:shadow-xl hover:shadow-blue-500/10"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {/* Image Section */}
-      <div className="relative aspect-square w-full">
+      <div className="relative aspect-square w-full overflow-hidden">
         <Image
           src={item.thumbnail || "/placeholder.svg"}
           alt={item.title}
           fill
           sizes="(min-width: 1024px) 25vw, 50vw"
-          className="object-cover p-2"
+          className="object-cover transition-transform duration-500 group-hover:scale-110"
         />
-        {/* Checkmark Icon in bottom-right corner of image */}
-        <div className="absolute bottom-2 right-2 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-          </svg>
+
+        {/* Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+
+        {/* Verification Badge */}
+        <div className="absolute top-3 right-3 w-8 h-8 bg-green-500/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg">
+          <Shield className="w-4 h-4 text-white" />
+        </div>
+
+        {/* Type Badge */}
+        <div className="absolute top-3 left-3 px-2 py-1 bg-black/50 backdrop-blur-sm rounded-lg flex items-center gap-1">
+          {getTypeIcon(item.type || "img")}
+          <span className="text-xs text-white font-medium">
+            {item.type?.toUpperCase() || "IMG"}
+          </span>
+        </div>
+
+        {/* Hover Overlay */}
+        <div
+          className={`absolute inset-0 bg-blue-500/20 backdrop-blur-sm flex items-center justify-center transition-all duration-300 ${
+            isHovered ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <Button
+            onClick={() => router.push(`/tag/${item.id}`)}
+            className="bg-white/90 hover:bg-white text-blue-600 font-semibold px-6 py-2 rounded-xl shadow-lg hover:scale-105 transition-all duration-200"
+          >
+            View Details
+          </Button>
         </div>
       </div>
 
-      {/* Text Section */}
-      <div className="p-3 space-y-1">
-        <h3 className="text-white text-sm font-medium truncate">{item.title}</h3>
-        <p className="text-cyan-400 text-xs truncate">{item.handle}</p>
-      </div>
+      {/* Content Section */}
+      <div className="p-4 space-y-3">
+        <div className="space-y-1">
+          <h3 className="text-white text-sm font-semibold truncate group-hover:text-blue-100 transition-colors duration-200">
+            {item.title}
+          </h3>
+          <p className="text-blue-400 text-xs font-medium truncate">
+            {item.handle}
+          </p>
+        </div>
 
-      {/* Button Section */}
-      <div className="px-3 pb-3">
-        <Button onClick={() => router.push(`/tag/${item.id}`)} className="w-full cursor-pointer bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-4 rounded transition-all duration-200 hover:scale-105">
-          View Tag
-        </Button>
+        {/* Status Bar */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-xs text-gray-400">Verified</span>
+          </div>
+          <div className="text-xs text-gray-500">
+            {new Date().toLocaleDateString()}
+          </div>
+        </div>
       </div>
     </div>
-  )
+  );
 }
