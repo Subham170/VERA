@@ -11,6 +11,7 @@ declare global {
 
 import { LoginCard } from "@/components/custom/login-card";
 import { useAuth } from "@/context/AuthContext";
+import { API_ENDPOINTS } from "@/lib/config";
 import { getAddress } from "ethers";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -61,7 +62,7 @@ export default function LoginPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/users/${connectedAddress}`
+        `${API_ENDPOINTS.USERS}/${connectedAddress}`
       );
 
       if (!response.ok) {

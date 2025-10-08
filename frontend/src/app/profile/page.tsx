@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { ProfileHeader } from "@/components/custom/profile/profile-header";
 import { MediaGrid } from "@/components/custom/profile/media-grid";
+import { ProfileHeader } from "@/components/custom/profile/profile-header";
+import { API_ENDPOINTS } from "@/lib/config";
 import { getAddress } from "ethers";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface UserProfile {
   username: string;
@@ -46,13 +47,15 @@ export default function ProfilePage() {
       }
 
       try {
-        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+        const accounts = await window.ethereum.request({
+          method: "eth_requestAccounts",
+        });
         if (accounts.length === 0) {
           router.push("/login");
           return;
         }
-          const checksummedAddress = getAddress(accounts[0]);
-          setConnectedAddress(checksummedAddress);
+        const checksummedAddress = getAddress(accounts[0]);
+        setConnectedAddress(checksummedAddress);
       } catch (err) {
         console.error("Failed to connect wallet:", err);
         setError("Failed to connect wallet.");
@@ -72,11 +75,16 @@ export default function ProfilePage() {
       setIsLoading(true);
       setError(null);
       try {
-        const userProfileResponse = await fetch(`http://localhost:5000/api/users/${connectedAddress}`, {
-          signal: controller.signal,
-        });
-        if (!userProfileResponse.ok) throw new Error("Failed to fetch user profile.");
-        const userProfile: UserProfile = (await userProfileResponse.json())?.data.user;
+        const userProfileResponse = await fetch(
+          `${API_ENDPOINTS.USERS}/${connectedAddress}`,
+          {
+            signal: controller.signal,
+          }
+        );
+        if (!userProfileResponse.ok)
+          throw new Error("Failed to fetch user profile.");
+        const userProfile: UserProfile = (await userProfileResponse.json())
+          ?.data.user;
         setProfileData(userProfile);
       } catch (err: any) {
         if (err.name === "AbortError") {
@@ -93,10 +101,10 @@ export default function ProfilePage() {
     const fetchUserTags = async () => {
       try {
         console.log(connectedAddress);
-        const res = await fetch(`http://localhost:5000/api/tags/user/${connectedAddress}`);
+        const res = await fetch(API_ENDPOINTS.TAGS_USER(connectedAddress));
         if (!res.ok) throw new Error("Failed to fetch user tags.");
         const tagsData = await res.json();
-        console.log(tagsData)
+        console.log(tagsData);
         setUserTags(tagsData?.data.tags || []);
       } catch (err: any) {
         console.error("Failed to fetch tags:", err);
@@ -125,7 +133,9 @@ export default function ProfilePage() {
           </h2>
           <div className="h-0.5 bg-gradient-to-r from-blue-500 to-teal-400 w-24"></div>
         </div>
-        {isLoading && <p className="text-white text-center">Loading profile...</p>}
+        {isLoading && (
+          <p className="text-white text-center">Loading profile...</p>
+        )}
         {error && <p className="text-yellow-500 text-center">{error}</p>}
         {!isLoading && !error && userTags.length === 0 && (
           <div className="text-center text-gray-400 py-12">

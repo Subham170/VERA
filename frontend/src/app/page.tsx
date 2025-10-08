@@ -5,6 +5,7 @@ import HeroEmptyState from "@/components/custom/hero";
 import { MediaGrid } from "@/components/custom/profile/media-grid";
 import WelcomeScreen from "@/components/custom/welcome-screen";
 import { useAuth } from "@/context/AuthContext";
+import { API_ENDPOINTS } from "@/lib/config";
 import { getAddress } from "ethers";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -65,9 +66,7 @@ export default function Home() {
         }
 
         const checksummedAddress = getAddress(accounts[0]);
-        const res = await fetch(
-          `http://localhost:5000/api/tags/user/${checksummedAddress}`
-        );
+        const res = await fetch(API_ENDPOINTS.TAGS_USER(checksummedAddress));
         if (!res.ok) throw new Error("Failed to fetch user tags.");
 
         const tagsData = await res.json();

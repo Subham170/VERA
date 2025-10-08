@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { API_ENDPOINTS } from "@/lib/config";
 import { ethers, type TransactionResponse } from "ethers";
 import { Check, Eye, UploadCloud, Wallet } from "lucide-react";
 import { useState } from "react";
@@ -129,13 +130,10 @@ export default function ReviewTagModal({
       };
       const backendType = typeMap[mediaType] || "img";
 
-      let route = "http://localhost:5000/api/tags";
-      if (backendType === "img")
-        route = "http://localhost:5000/api/tags/with-images";
-      else if (backendType === "video")
-        route = "http://localhost:5000/api/tags/with-videos";
-      else if (backendType === "audio")
-        route = "http://localhost:5000/api/tags/with-audio";
+      let route: string = API_ENDPOINTS.TAGS;
+      if (backendType === "img") route = API_ENDPOINTS.TAGS_WITH_IMAGES;
+      else if (backendType === "video") route = API_ENDPOINTS.TAGS_WITH_VIDEOS;
+      else if (backendType === "audio") route = API_ENDPOINTS.TAGS_WITH_AUDIO;
 
       const formData = new FormData();
       if (backendType === "img") formData.append("images", file);

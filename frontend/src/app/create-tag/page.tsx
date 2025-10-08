@@ -2,9 +2,16 @@
 
 import AuthenticatedLayout from "@/components/custom/layouts/authenticated-layout";
 import { useAuth } from "@/context/AuthContext";
-import { X, ShieldAlert, ArrowRight, UploadCloud, CheckCircle } from "lucide-react";
+import { API_BASE_URL } from "@/lib/config";
+import {
+  ArrowRight,
+  CheckCircle,
+  ShieldAlert,
+  UploadCloud,
+  X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 
 interface DetectionResult {
@@ -77,7 +84,7 @@ export default function CreateTagPage() {
       const formData = new FormData();
       formData.append("file_data", file);
 
-      const response = await fetch("http://localhost:5000/api/detect", {
+      const response = await fetch(`${API_BASE_URL}/api/detect`, {
         method: "POST",
         body: formData,
       });
@@ -105,21 +112,22 @@ export default function CreateTagPage() {
       };
 
       const base64Preview = await fileToDataUrl(file);
-      
+
       const tagDataPayload: PreparedData = {
         name: fileName,
         description: description || "",
-        mediaType: file.type.split('/')[0] || "image",
+        mediaType: file.type.split("/")[0] || "image",
         filePreview: base64Preview,
         detectionResult: detectionResult,
       };
-      
+
       setPreparedData(tagDataPayload);
       toast.success("Analysis complete. You can now proceed.", { id: toastId });
-
     } catch (err: any) {
       console.error("Detection error:", err);
-      toast.error(err.message || "Could not analyze the media.", { id: toastId });
+      toast.error(err.message || "Could not analyze the media.", {
+        id: toastId,
+      });
     } finally {
       setIsDetecting(false);
     }
@@ -167,29 +175,38 @@ export default function CreateTagPage() {
                 <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg bg-blue-600">
                   <span className="font-bold text-lg text-white">1</span>
                 </div>
-                <span className="text-white text-sm mt-3 font-medium">Add & Analyze Media</span>
+                <span className="text-white text-sm mt-3 font-medium">
+                  Add & Analyze Media
+                </span>
               </div>
               <div className="w-16 h-0.5 bg-gray-600"></div>
               <div className="flex flex-col items-center">
                 <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg bg-white border-2 border-blue-600">
                   <span className="font-bold text-lg text-blue-600">2</span>
                 </div>
-                <span className="text-white text-sm mt-3 font-medium">Review & Register</span>
+                <span className="text-white text-sm mt-3 font-medium">
+                  Review & Register
+                </span>
               </div>
             </div>
           </div>
-          
+
           <div className="max-w-2xl mx-auto">
-            <form onSubmit={handleAnalysis} className="bg-[#2A2D35] p-8 rounded-lg border border-[#3A3D45] space-y-6">
+            <form
+              onSubmit={handleAnalysis}
+              className="bg-[#2A2D35] p-8 rounded-lg border border-[#3A3D45] space-y-6"
+            >
               <div>
-                <label className="text-sm font-medium text-gray-300 mb-2 block">Upload Media</label>
-                <div 
+                <label className="text-sm font-medium text-gray-300 mb-2 block">
+                  Upload Media
+                </label>
+                <div
                   onClick={() => fileInputRef.current?.click()}
                   className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors"
                 >
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
+                  <input
+                    type="file"
+                    ref={fileInputRef}
                     onChange={handleFileChange}
                     className="hidden"
                     accept="image/*,video/*,audio/*"
@@ -198,15 +215,24 @@ export default function CreateTagPage() {
                     <UploadCloud className="w-6 h-6 text-gray-400" />
                   </div>
                   {file ? (
-                    <p className="mt-2 text-sm text-green-400">{file.name} selected</p>
+                    <p className="mt-2 text-sm text-green-400">
+                      {file.name} selected
+                    </p>
                   ) : (
-                    <p className="mt-2 text-sm text-gray-400">Click to browse or drag & drop</p>
+                    <p className="mt-2 text-sm text-gray-400">
+                      Click to browse or drag & drop
+                    </p>
                   )}
                 </div>
               </div>
               <div>
-                <label htmlFor="fileName" className="text-sm font-medium text-gray-300 mb-2 block">Media Name</label>
-                <input 
+                <label
+                  htmlFor="fileName"
+                  className="text-sm font-medium text-gray-300 mb-2 block"
+                >
+                  Media Name
+                </label>
+                <input
                   type="text"
                   id="fileName"
                   value={fileName}
@@ -217,7 +243,12 @@ export default function CreateTagPage() {
                 />
               </div>
               <div>
-                <label htmlFor="description" className="text-sm font-medium text-gray-300 mb-2 block">Description (Optional)</label>
+                <label
+                  htmlFor="description"
+                  className="text-sm font-medium text-gray-300 mb-2 block"
+                >
+                  Description (Optional)
+                </label>
                 <textarea
                   id="description"
                   value={description}
@@ -227,7 +258,7 @@ export default function CreateTagPage() {
                   className="w-full bg-[#3A3D45] border border-gray-600 text-white rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <button 
+              <button
                 type="submit"
                 disabled={isDetecting || !file}
                 className="w-full bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 hover:bg-gray-800 disabled:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-500"
@@ -236,13 +267,17 @@ export default function CreateTagPage() {
               </button>
             </form>
           </div>
-          
+
           {deepfakeWarning && (
             <div className="max-w-2xl mx-auto mt-6 p-4 bg-red-900/50 border border-red-500/60 rounded-lg flex items-start space-x-4">
               <ShieldAlert className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
               <div>
-                <h4 className="font-bold text-red-300">High Deepfake Probability Detected</h4>
-                <p className="text-sm text-red-300/80 mt-1">{deepfakeWarning}</p>
+                <h4 className="font-bold text-red-300">
+                  High Deepfake Probability Detected
+                </h4>
+                <p className="text-sm text-red-300/80 mt-1">
+                  {deepfakeWarning}
+                </p>
               </div>
             </div>
           )}
@@ -250,21 +285,22 @@ export default function CreateTagPage() {
           {preparedData && !isDetecting && (
             <div className="max-w-2xl mx-auto mt-6 p-4 bg-green-900/50 border border-green-500/60 rounded-lg flex items-center space-x-4">
               <CheckCircle className="w-6 h-6 text-green-400 flex-shrink-0" />
-              <p className="text-sm text-green-300 font-medium">Analysis complete. You can now proceed to the review step.</p>
+              <p className="text-sm text-green-300 font-medium">
+                Analysis complete. You can now proceed to the review step.
+              </p>
             </div>
           )}
-          
-          <div className="max-w-2xl mx-auto mt-6">
-              <button
-                onClick={handleProceedToReview}
-                disabled={!preparedData || isDetecting}
-                className="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:text-gray-400"
-              >
-                <span>Continue to Review</span>
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </button>
-          </div>
 
+          <div className="max-w-2xl mx-auto mt-6">
+            <button
+              onClick={handleProceedToReview}
+              disabled={!preparedData || isDetecting}
+              className="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:text-gray-400"
+            >
+              <span>Continue to Review</span>
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </button>
+          </div>
         </div>
       </main>
       <Toaster

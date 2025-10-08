@@ -1,56 +1,59 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
 import { SignUpCard } from "@/components/custom/signup-card";
-import toast, { Toaster } from 'react-hot-toast';
-import { getAddress } from 'ethers';
+import { useAuth } from "@/context/AuthContext";
+import { API_ENDPOINTS } from "@/lib/config";
+import { getAddress } from "ethers";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function SignUpPage() {
   const { isAuthorized, login, isLoading: isAuthLoading } = useAuth();
   const router = useRouter();
 
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthLoading && isAuthorized) {
-      router.push('/');
+      router.push("/");
     }
   }, [isAuthorized, isAuthLoading, router]);
 
   const handleConnectWallet = async () => {
-    if (typeof window.ethereum === 'undefined') {
-      toast.error('MetaMask is not installed. Please install it to continue.');
+    if (typeof window.ethereum === "undefined") {
+      toast.error("MetaMask is not installed. Please install it to continue.");
       return;
     }
     try {
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const accounts = await window.ethereum.request({
+        method: "eth_requestAccounts",
+      });
       const checksummedAddress = getAddress(accounts[0]);
       setConnectedAddress(checksummedAddress);
-      toast.success('Wallet connected successfully!');
+      toast.success("Wallet connected successfully!");
     } catch (err) {
-      toast.error('Failed to connect wallet. The request was rejected.');
+      toast.error("Failed to connect wallet. The request was rejected.");
       console.error(err);
     }
   };
 
   const handleSignUp = async () => {
     if (!username || !email || !connectedAddress) {
-      toast.error('Please fill all fields and connect your wallet.');
+      toast.error("Please fill all fields and connect your wallet.");
       return;
     }
     setIsLoading(true);
-    const toastId = toast.loading('Creating your account...');
+    const toastId = toast.loading("Creating your account...");
 
     try {
-      const response = await fetch('http://localhost:5000/api/users', {
-        method: 'POST',
+      const response = await fetch(API_ENDPOINTS.USERS, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           username,
@@ -61,20 +64,23 @@ export default function SignUpPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Sign up failed. Please try again.');
+        throw new Error(
+          errorData.message || "Sign up failed. Please try again."
+        );
       }
 
       const newUser = await response.json();
-      login(newUser); 
-      
-      toast.success('Account created successfully! Redirecting...', { id: toastId });
-      
-      setTimeout(() => {
-        router.push('/');
-      }, 1000);
+      login(newUser);
 
+      toast.success("Account created successfully! Redirecting...", {
+        id: toastId,
+      });
+
+      setTimeout(() => {
+        router.push("/");
+      }, 1000);
     } catch (err: any) {
-      toast.error(err.message || 'An unknown error occurred.', { id: toastId });
+      toast.error(err.message || "An unknown error occurred.", { id: toastId });
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -82,9 +88,7 @@ export default function SignUpPage() {
   };
 
   if (isAuthLoading || isAuthorized) {
-    return (
-        <div className="relative min-h-dvh overflow-hidden bg-gray-900" />
-    );
+    return <div className="relative min-h-dvh overflow-hidden bg-gray-900" />;
   }
 
   return (
