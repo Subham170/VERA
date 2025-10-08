@@ -30,14 +30,16 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// CORS configuration
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    origin: [
+      "http://localhost:3000", // for local development
+      "https://vera-seven.vercel.app" // for production
+    ],
     credentials: true,
   })
 );
-
 // Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
