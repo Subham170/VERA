@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Check, Eye, Wallet, UploadCloud } from "lucide-react";
 import { ethers, type TransactionResponse } from "ethers";
+import { Check, Eye, UploadCloud, Wallet } from "lucide-react";
+import { useState } from "react";
 import toast from "react-hot-toast";
 
 const ABI = [
@@ -18,7 +18,8 @@ const CONTRACT_ADDRESS = "0x38a9487b69d3b8f810b5DFC53f671db002e827A4";
 function base64ToFile(base64: string, fileName: string): File {
   const arr = base64.split(",");
   const mimeMatch = arr[0].match(/:(.*?);/);
-  if (!mimeMatch) throw new Error("Invalid Base64 string: MIME type not found.");
+  if (!mimeMatch)
+    throw new Error("Invalid Base64 string: MIME type not found.");
   const mime = mimeMatch[1];
   const bstr = atob(arr[1]);
   let n = bstr.length;
@@ -39,10 +40,13 @@ async function uploadFileToPinata(file: File): Promise<string> {
   });
   if (!res.ok) {
     const errorBody = await res.text();
-    throw new Error(`Failed to upload to Pinata: ${res.statusText} - ${errorBody}`);
+    throw new Error(
+      `Failed to upload to Pinata: ${res.statusText} - ${errorBody}`
+    );
   }
   const result = await res.json();
-  if (!result.IpfsHash) throw new Error("Invalid response from Pinata: IPFS hash not found.");
+  if (!result.IpfsHash)
+    throw new Error("Invalid response from Pinata: IPFS hash not found.");
   return result.IpfsHash;
 }
 
@@ -54,7 +58,9 @@ function generateSha256Hash(file: File): Promise<string> {
         const data = reader.result as ArrayBuffer;
         const hashBuffer = await crypto.subtle.digest("SHA-256", data);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+        const hashHex = hashArray
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
         resolve(hashHex);
       } catch (err) {
         reject(err);
@@ -88,12 +94,19 @@ export default function ReviewTagModal({
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [ipfsUploadData, setIpfsUploadData] = useState<{ cid: string; watermarkHash: string } | null>(null);
+  const [ipfsUploadData, setIpfsUploadData] = useState<{
+    cid: string;
+    watermarkHash: string;
+  } | null>(null);
 
   const handleUploadToIPFS = async () => {
     const tagDataRaw = localStorage.getItem("uploadedTagData");
-    if (!tagDataRaw) return toast.error("No file data found. Please go back and upload your media first.");
-    if (typeof window.ethereum === "undefined") return toast.error("MetaMask is not installed.");
+    if (!tagDataRaw)
+      return toast.error(
+        "No file data found. Please go back and upload your media first."
+      );
+    if (typeof window.ethereum === "undefined")
+      return toast.error("MetaMask is not installed.");
 
     setIsUploading(true);
     const toastId = toast.loading("Preparing to upload...");
@@ -109,13 +122,20 @@ export default function ReviewTagModal({
       const walletAddress = await signer.getAddress();
 
       let mediaType = tagData.mediaType || "image";
-      const typeMap: Record<string, string> = { image: "img", video: "video", audio: "audio" };
+      const typeMap: Record<string, string> = {
+        image: "img",
+        video: "video",
+        audio: "audio",
+      };
       const backendType = typeMap[mediaType] || "img";
 
       let route = "http://localhost:5000/api/tags";
-      if (backendType === "img") route = "http://localhost:5000/api/tags/with-images";
-      else if (backendType === "video") route = "http://localhost:5000/api/tags/with-videos";
-      else if (backendType === "audio") route = "http://localhost:5000/api/tags/with-audio";
+      if (backendType === "img")
+        route = "http://localhost:5000/api/tags/with-images";
+      else if (backendType === "video")
+        route = "http://localhost:5000/api/tags/with-videos";
+      else if (backendType === "audio")
+        route = "http://localhost:5000/api/tags/with-audio";
 
       const formData = new FormData();
       if (backendType === "img") formData.append("images", file);
@@ -138,18 +158,25 @@ export default function ReviewTagModal({
       const watermarkHash = await generateSha256Hash(file);
       setIpfsUploadData({ cid, watermarkHash });
 
-      toast.success("File uploaded and registered successfully!", { id: toastId });
+      toast.success("File uploaded and registered successfully!", {
+        id: toastId,
+      });
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "An unexpected error occurred during upload.", { id: toastId });
+      toast.error(
+        err.message || "An unexpected error occurred during upload.",
+        { id: toastId }
+      );
     } finally {
       setIsUploading(false);
     }
   };
 
   const handlePayFees = async () => {
-    if (typeof window.ethereum === "undefined") return toast.error("MetaMask is not installed.");
-    if (!ipfsUploadData) return toast.error("Please upload the file to IPFS first.");
+    if (typeof window.ethereum === "undefined")
+      return toast.error("MetaMask is not installed.");
+    if (!ipfsUploadData)
+      return toast.error("Please upload the file to IPFS first.");
 
     setIsLoading(true);
     const toastId = toast.loading("Waiting for transaction confirmation...");
@@ -159,21 +186,32 @@ export default function ReviewTagModal({
       const signer = await provider.getSigner();
       const contract = getEthersContract(signer);
 
-      const tx: TransactionResponse = await contract.registerMedia(ipfsUploadData.cid, ipfsUploadData.watermarkHash);
+      const tx: TransactionResponse = await contract.registerMedia(
+        ipfsUploadData.cid,
+        ipfsUploadData.watermarkHash
+      );
       await tx.wait();
 
-      toast.success("Transaction successful! Media registered on-chain.", { id: toastId });
+      toast.success("Transaction successful! Media registered on-chain.", {
+        id: toastId,
+      });
       localStorage.removeItem("uploadedTagData");
       onCancel?.();
     } catch (err: any) {
       console.error(err);
-      toast.error(err.reason || err.message || "An unexpected error occurred.", { id: toastId });
+      toast.error(
+        err.reason || err.message || "An unexpected error occurred.",
+        { id: toastId }
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const tagData = JSON.parse(localStorage.getItem("uploadedTagData") || "{}");
+  const tagData =
+    typeof window !== "undefined"
+      ? JSON.parse(localStorage.getItem("uploadedTagData") || "{}")
+      : {};
   const fileName = tagData.name || defaultFileName;
   const mediaType = tagData.mediaType || defaultMediaType;
 
@@ -182,7 +220,9 @@ export default function ReviewTagModal({
       <Card className="bg-[#2A2D35] border-[#3A3D45] shadow-2xl">
         <CardContent className="p-8">
           <h1 className="text-3xl font-bold text-white mb-4">
-            {isBulkUpload ? "Review your bulk media collection" : "Review your media tag"}
+            {isBulkUpload
+              ? "Review your bulk media collection"
+              : "Review your media tag"}
           </h1>
           <p className="text-gray-300 text-base mb-8">
             {isBulkUpload
@@ -197,7 +237,11 @@ export default function ReviewTagModal({
                   <div className="relative">
                     <div className="w-full h-64 bg-gradient-to-br from-gray-600 to-gray-800 rounded-lg flex items-center justify-center relative overflow-hidden">
                       {tagData.filePreview ? (
-                        <img src={tagData.filePreview} alt="Media Preview" className="w-full h-full object-cover" />
+                        <img
+                          src={tagData.filePreview}
+                          alt="Media Preview"
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <div className="text-center text-white">
                           <div className="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -216,7 +260,9 @@ export default function ReviewTagModal({
                       {isBulkUpload ? collectionName : fileName}
                     </h3>
                     <p className="text-blue-400 text-sm">
-                      {isBulkUpload ? `${fileCount} files in collection` : `@${mediaType} media`}
+                      {isBulkUpload
+                        ? `${fileCount} files in collection`
+                        : `@${mediaType} media`}
                     </p>
                   </div>
                 </div>
@@ -239,8 +285,16 @@ export default function ReviewTagModal({
                 className="bg-gray-600 text-white hover:bg-gray-700 transition-all duration-200"
                 disabled={isUploading || isLoading || !!ipfsUploadData}
               >
-                {ipfsUploadData ? <Check className="w-4 h-4 mr-2" /> : <UploadCloud className="w-4 h-4 mr-2" />}
-                {isUploading ? "Uploading..." : ipfsUploadData ? "Uploaded" : "1. Upload to IPFS"}
+                {ipfsUploadData ? (
+                  <Check className="w-4 h-4 mr-2" />
+                ) : (
+                  <UploadCloud className="w-4 h-4 mr-2" />
+                )}
+                {isUploading
+                  ? "Uploading..."
+                  : ipfsUploadData
+                  ? "Uploaded"
+                  : "1. Upload to IPFS"}
               </Button>
 
               {ipfsUploadData && (

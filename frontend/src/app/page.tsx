@@ -5,9 +5,9 @@ import HeroEmptyState from "@/components/custom/hero";
 import { MediaGrid } from "@/components/custom/profile/media-grid";
 import WelcomeScreen from "@/components/custom/welcome-screen";
 import { useAuth } from "@/context/AuthContext";
+import { getAddress } from "ethers";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getAddress } from "ethers";
 
 interface Tag {
   _id: string;
@@ -51,18 +51,27 @@ export default function Home() {
       setTagsError(null);
 
       try {
-        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+        if (!window.ethereum) {
+          router.push("/login");
+          return;
+        }
+
+        const accounts = await window.ethereum.request({
+          method: "eth_requestAccounts",
+        });
         if (accounts.length === 0) {
           router.push("/login");
           return;
         }
 
         const checksummedAddress = getAddress(accounts[0]);
-        const res = await fetch(`http://localhost:5000/api/tags/user/${checksummedAddress}`);
+        const res = await fetch(
+          `http://localhost:5000/api/tags/user/${checksummedAddress}`
+        );
         if (!res.ok) throw new Error("Failed to fetch user tags.");
 
         const tagsData = await res.json();
-        console.log(tagsData)
+        console.log(tagsData);
         setUserTags(tagsData?.data.tags || []);
       } catch (err: any) {
         console.error("Failed to fetch tags:", err);
@@ -92,7 +101,9 @@ export default function Home() {
       {showAnnouncementBanner && (
         <div
           className={`transition-all duration-500 ease-in-out ${
-            isAnimating ? "opacity-0 transform -translate-y-4" : "opacity-100 transform translate-y-0"
+            isAnimating
+              ? "opacity-0 transform -translate-y-4"
+              : "opacity-100 transform translate-y-0"
           }`}
         >
           <AnnouncementBanner />
@@ -103,11 +114,21 @@ export default function Home() {
         {/* Navigation Bar */}
         <div className="mb-8">
           <nav className="flex space-x-6 overflow-x-auto pb-2">
-            {["All", "Trending", "Travel", "People", "Politics", "News", "Vlog"].map((category) => (
+            {[
+              "All",
+              "Trending",
+              "Travel",
+              "People",
+              "Politics",
+              "News",
+              "Vlog",
+            ].map((category) => (
               <button
                 key={category}
                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200 ${
-                  category === "All" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
+                  category === "All"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-400 hover:text-white hover:bg-gray-800"
                 }`}
               >
                 {category}
@@ -117,17 +138,23 @@ export default function Home() {
         </div>
 
         <div className="mb-6">
-          <h2 className="text-lg text-white font-semibold tracking-tight mb-2">All media</h2>
+          <h2 className="text-lg text-white font-semibold tracking-tight mb-2">
+            All media
+          </h2>
           <div className="h-0.5 bg-gradient-to-r from-blue-500 to-teal-400 w-24"></div>
         </div>
 
-        {tagsLoading && <p className="text-white text-center">Loading your media...</p>}
-        {tagsError && <p className="text-yellow-500 text-center">{tagsError}</p>}
-        {!tagsLoading && !tagsError && userTags.length === 0 && <HeroEmptyState />}
+        {tagsLoading && (
+          <p className="text-white text-center">Loading your media...</p>
+        )}
+        {tagsError && (
+          <p className="text-yellow-500 text-center">{tagsError}</p>
+        )}
+        {!tagsLoading && !tagsError && userTags.length === 0 && (
+          <HeroEmptyState />
+        )}
         {!tagsLoading && !tagsError && userTags.length > 0 && (
-          <MediaGrid
-            mediaItems={userTags}
-          />
+          <MediaGrid mediaItems={userTags} />
         )}
       </section>
     </main>
