@@ -5,7 +5,9 @@ import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/config";
 import {
   ArrowRight,
+  Check,
   CheckCircle,
+  SearchCheck,
   ShieldAlert,
   UploadCloud,
   X,
@@ -13,6 +15,72 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
+import { ethers, type TransactionResponse } from "ethers";
+
+const ABI = [
+  "function registerMedia(string memory mediaCid, string memory metadataCid, bytes32 contentHash) public",
+  "function getMedia(bytes32 contentHash) public view returns (string memory mediaCid, string memory metadataCid, address uploader, uint256 timestamp)",
+  "function getMediaByOwner(address owner) public view returns (bytes32[] memory)",
+  "error MediaAlreadyRegistered(bytes32 contentHash)",
+  "error MediaNotFound(bytes32 contentHash)",
+];
+
+const CONTRACT_ADDRESS = "0x6Aa81Da4f2505F545370a5fC6DAceecD2B9F29E6";
+
+function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
+  return new ethers.Contract(CONTRACT_ADDRESS, ABI, signerOrProvider);
+}
+
+function generateSha256Hash(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const data = reader.result as ArrayBuffer;
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+        resolve(hashHex);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function uploadFileToPinata(file: File): Promise<string> {
+  const data = new FormData();
+  data.append("file", file);
+  const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJjYWQ4ZTFkMC0xYzEwLTRlODYtYjQ5MS04ZDE3NmNlZTIwMTciLCJlbWFpbCI6InRlY2hub3RvcGljczIwMDRAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjQzMjVhMDYzYWViMTNhMzIwYWFmIiwic2NvcGVkS2V5U2VjcmV0IjoiNjI5ZTljOWM1NjRlNjI0ZDdiMjU5ODFmMzQ0MDIzNzQyM2U5ODc4OWQwYTU2YTdmYWYwZmM3ZDkwNzY0ZjBjMyIsImV4cCI6MTc5MTQwNzg0Mn0.WtLYbmqgguRrXI44F78F8DCbQ_8MadDF_J2GY2PLrlE`,
+    },
+    body: data,
+  });
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(`Failed to upload to Pinata: ${res.statusText} - ${errorBody}`);
+  }
+  const result = await res.json();
+  if (!result.IpfsHash) throw new Error("Invalid response from Pinata: IPFS hash not found.");
+  return result.IpfsHash;
+}
+
+function base64ToFile(base64: string, fileName: string): File {
+    const arr = base64.split(",");
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch) throw new Error("Invalid Base64 string: MIME type not found.");
+    const mime = mimeMatch[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) u8arr[n] = bstr.charCodeAt(n);
+    return new File([u8arr], fileName, { type: mime });
+}
+
 
 interface DetectionResult {
   media_type: string;
@@ -48,7 +116,10 @@ export default function CreateTagPage() {
   const [description, setDescription] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   const [deepfakeWarning, setDeepfakeWarning] = useState<string | null>(null);
   const [preparedData, setPreparedData] = useState<PreparedData | null>(null);
   const [isHighDeepfakeDetected, setIsHighDeepfakeDetected] = useState(false);
@@ -67,6 +138,38 @@ export default function CreateTagPage() {
       setPreparedData(null);
       setDeepfakeWarning(null);
       setIsHighDeepfakeDetected(false);
+      setIsVerified(false);
+    }
+  };
+
+  const handleVerifyOnChain = async () => {
+    if (!file) return toast.error("Please select a file first.");
+    if (typeof window.ethereum === "undefined") return toast.error("MetaMask is not installed.");
+
+    setIsVerifying(true);
+    setIsVerified(false);
+    const toastId = toast.loading("Verifying file on-chain...");
+
+    try {
+      const contentHash = await generateSha256Hash(file);
+      const formattedHash = '0x' + contentHash;
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const contract = getEthersContract(provider);
+
+      try {
+        await contract.getMedia(formattedHash);
+        toast.error("This file has already been registered on the blockchain.", { id: toastId });
+      } catch (error: any) {
+        if (error.code !== "CALL_EXCEPTION" && error.code !== "BAD_DATA") {
+          throw error;
+        }
+        toast.success("This media is unique. You can now detect deepfakes.", { id: toastId });
+        setIsVerified(true);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An unexpected error occurred during verification.", { id: toastId });
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -76,39 +179,59 @@ export default function CreateTagPage() {
       toast.error("Please select a file to analyze.");
       return;
     }
+    if (!isVerified) {
+      toast.error("Please verify the file's uniqueness on-chain first.");
+      return;
+    }
 
     setIsDetecting(true);
     setDeepfakeWarning(null);
     setPreparedData(null);
     setIsHighDeepfakeDetected(false);
+    const toastId = toast.loading("Running AI analysis...");
 
     try {
       const formData = new FormData();
       formData.append("file_data", file);
-
       const response = await fetch(`${API_BASE_URL}/api/detect`, {
         method: "POST",
         body: formData,
       });
-
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Detection service failed: ${errorText}`);
       }
-
       const detectionResult: DetectionResult = await response.json();
 
-      // Check for high deepfake probability (70% or higher)
+      if (typeof window.ethereum !== "undefined") {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const signerAddress = await signer.getAddress();
+        const metadataObject = {
+          fileName: fileName,
+          description: description,
+          signerAddress: signerAddress,
+          probabilities: {
+            deepfake: detectionResult.deepfake_probability,
+            natural: detectionResult.natural_probability,
+          },
+          contentAnalysis: detectionResult.reasoning.content_analysis,
+        };
+        localStorage.setItem("metadata", JSON.stringify(metadataObject, null, 2));
+      } else {
+        toast.error("MetaMask not found. Metadata could not be saved with a signer address.");
+      }
+
       if (detectionResult.deepfake_probability >= 70) {
         setIsHighDeepfakeDetected(true);
         setDeepfakeWarning(
-          `High deepfake probability detected (${detectionResult.deepfake_probability}%). This media appears to be artificially generated. Please try uploading a different media file.`
+          `High deepfake probability detected (${detectionResult.deepfake_probability}%). Please try another media file.`
         );
-        toast.error("High deepfake probability detected. Please try another media file.");
-        return; // Don't proceed to prepare data
+        toast.error("High deepfake probability detected. Please try another media file.", { id: toastId });
+        return;
       } else if (detectionResult.deepfake_probability > 50) {
         setDeepfakeWarning(
-          `Warning: AI analysis indicates a moderate probability (${detectionResult.deepfake_probability}%) that this media is a deepfake. Please review the full report carefully before proceeding.`
+          `Warning: AI analysis indicates a moderate probability (${detectionResult.deepfake_probability}%).`
         );
       }
 
@@ -122,7 +245,6 @@ export default function CreateTagPage() {
       };
 
       const base64Preview = await fileToDataUrl(file);
-
       const tagDataPayload: PreparedData = {
         name: fileName,
         description: description || "",
@@ -130,25 +252,60 @@ export default function CreateTagPage() {
         filePreview: base64Preview,
         detectionResult: detectionResult,
       };
-
+      
+      localStorage.setItem("uploadedTagData", JSON.stringify(tagDataPayload));
       setPreparedData(tagDataPayload);
-      toast.success("Analysis complete. You can now proceed.");
+      toast.success("Analysis complete. You can now proceed to register.", { id: toastId });
     } catch (err: any) {
       console.error("Detection error:", err);
-      toast.error(err.message || "Could not analyze the media.");
+      toast.error(err.message || "Could not analyze the media.", { id: toastId });
     } finally {
       setIsDetecting(false);
     }
   };
 
-  const handleProceedToReview = () => {
-    if (!preparedData) {
-      toast.error("Please analyze the media first.");
-      return;
+  const handleRegister = async () => {
+    const tagDataRaw = localStorage.getItem("uploadedTagData");
+    const metadataRaw = localStorage.getItem("metadata");
+    if (!tagDataRaw) return toast.error("Media data not found. Please re-analyze.");
+    if (!metadataRaw) return toast.error("Metadata not found. Please re-analyze.");
+    if (typeof window.ethereum === "undefined") return toast.error("MetaMask is not installed.");
+
+    setIsRegistering(true);
+    const toastId = toast.loading("Uploading files to IPFS...");
+
+    try {
+      const tagData = JSON.parse(tagDataRaw);
+      const mediaFile = base64ToFile(tagData.filePreview, tagData.name);
+      const metadataFile = new File([metadataRaw], "metadata.json", { type: "application/json" });
+      
+      const [mediaCid, metadataCid, contentHash] = await Promise.all([
+        uploadFileToPinata(mediaFile),
+        uploadFileToPinata(metadataFile),
+        generateSha256Hash(mediaFile)
+      ]);
+      
+      toast.loading("Awaiting on-chain registration...", { id: toastId });
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = getEthersContract(signer);
+      const formattedHash = '0x' + contentHash;
+
+      const tx: TransactionResponse = await contract.registerMedia(mediaCid, metadataCid, formattedHash);
+      await tx.wait();
+      
+      toast.success("Media successfully registered on-chain!", { id: toastId });
+      localStorage.removeItem("uploadedTagData");
+      localStorage.removeItem("metadata");
+      router.push("/");
+    } catch (err: any) {
+        console.error("Registration error:", err);
+        toast.error(err.reason || err.message || "An unexpected error occurred during registration.", { id: toastId });
+    } finally {
+        setIsRegistering(false);
     }
-    localStorage.setItem("uploadedTagData", JSON.stringify(preparedData));
-    router.push("/review-tag");
   };
+
 
   const handleCancel = () => {
     router.push("/");
@@ -166,86 +323,20 @@ export default function CreateTagPage() {
     return null;
   }
 
+  const isProcessing = isDetecting || isVerifying || isRegistering;
+
   return (
     <AuthenticatedLayout>
       <main className="min-h-screen bg-[#181A1D]">
-        {/* Loading Overlay */}
-        {isDetecting && (
+        {isProcessing && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
-            <div className="bg-[#2A2D35] rounded-2xl p-8 max-w-md mx-4 border border-gray-700/50 shadow-2xl">
-              {/* Main Loading Animation */}
-              <div className="flex flex-col items-center space-y-6">
-                {/* Animated Shield Icon */}
-                <div className="relative">
-                  <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg">
-                    <ShieldAlert className="w-10 h-10 text-white animate-pulse" />
-                  </div>
-                  {/* Rotating Ring */}
+            <div className="text-center space-y-4">
+              <div className="relative w-20 h-20 mx-auto">
                   <div className="absolute inset-0 w-20 h-20 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
-                  {/* Outer Pulse Ring */}
-                  <div className="absolute inset-0 w-20 h-20 border-2 border-blue-400/20 rounded-full animate-ping"></div>
-                </div>
-
-                {/* Loading Text */}
-                <div className="text-center space-y-2">
-                  <h3 className="text-xl font-bold text-white">
-                    Analyzing Media
-                  </h3>
-                  <p className="text-gray-400 text-sm">
-                    Detecting deepfake indicators...
-                  </p>
-                </div>
-
-                {/* Progress Steps */}
-                <div className="w-full space-y-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm text-gray-300">
-                      Uploading media to secure servers
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div
-                      className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
-                      style={{ animationDelay: "0.5s" }}
-                    ></div>
-                    <span className="text-sm text-gray-300">
-                      Running AI analysis algorithms
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div
-                      className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
-                      style={{ animationDelay: "1s" }}
-                    ></div>
-                    <span className="text-sm text-gray-300">
-                      Verifying authenticity markers
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                    <span className="text-sm text-gray-500">
-                      Generating detailed report
-                    </span>
-                  </div>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full animate-pulse"></div>
-                </div>
-
-                {/* Security Notice */}
-                <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 w-full">
-                  <div className="flex items-center space-x-2">
-                    <ShieldAlert className="w-4 h-4 text-blue-400" />
-                    <span className="text-xs text-blue-300">
-                      Your media is processed securely and never stored
-                      permanently
-                    </span>
-                  </div>
-                </div>
               </div>
+              <h3 className="text-xl font-bold text-white">
+                {isVerifying ? "Verifying on Chain..." : isDetecting ? "Analyzing Media..." : "Registering..."}
+              </h3>
             </div>
           </div>
         )}
@@ -264,128 +355,78 @@ export default function CreateTagPage() {
                 <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg bg-blue-600">
                   <span className="font-bold text-lg text-white">1</span>
                 </div>
-                <span className="text-white text-sm mt-3 font-medium">
-                  Add & Analyze Media
-                </span>
+                <span className="text-white text-sm mt-3 font-medium">Add & Analyze Media</span>
               </div>
               <div className="w-16 h-0.5 bg-gray-600"></div>
               <div className="flex flex-col items-center">
                 <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg bg-white border-2 border-blue-600">
                   <span className="font-bold text-lg text-blue-600">2</span>
                 </div>
-                <span className="text-white text-sm mt-3 font-medium">
-                  Review & Register
-                </span>
+                <span className="text-white text-sm mt-3 font-medium">Review & Register</span>
               </div>
             </div>
           </div>
 
           <div className="max-w-2xl mx-auto">
-            <form
-              onSubmit={handleAnalysis}
-              className="bg-[#2A2D35] p-8 rounded-lg border border-[#3A3D45] space-y-6"
-            >
+            <form onSubmit={handleAnalysis} className="bg-[#2A2D35] p-8 rounded-lg border border-[#3A3D45] space-y-6">
               <div>
-                <label className="text-sm font-medium text-gray-300 mb-2 block">
-                  Upload Media
-                </label>
+                <label className="text-sm font-medium text-gray-300 mb-2 block">Upload Media</label>
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors"
                 >
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept="image/*,video/*,audio/*"
-                  />
+                  <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*" />
                   <div className="mx-auto w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center">
                     <UploadCloud className="w-6 h-6 text-gray-400" />
                   </div>
                   {file ? (
-                    <p className="mt-2 text-sm text-green-400">
-                      {file.name} selected
-                    </p>
+                    <p className="mt-2 text-sm text-green-400">{file.name} selected</p>
                   ) : (
-                    <p className="mt-2 text-sm text-gray-400">
-                      Click to browse or drag & drop
-                    </p>
+                    <p className="mt-2 text-sm text-gray-400">Click to browse or drag & drop</p>
                   )}
                 </div>
               </div>
               <div>
-                <label
-                  htmlFor="fileName"
-                  className="text-sm font-medium text-gray-300 mb-2 block"
-                >
-                  Media Name
-                </label>
-                <input
-                  type="text"
-                  id="fileName"
-                  value={fileName}
-                  onChange={(e) => setFileName(e.target.value)}
-                  placeholder="e.g., My Summer Vacation Video"
-                  className="w-full bg-[#3A3D45] border border-gray-600 text-white rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
+                <label htmlFor="fileName" className="text-sm font-medium text-gray-300 mb-2 block">Media Name</label>
+                <input type="text" id="fileName" value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="e.g., My Summer Vacation Video" className="w-full bg-[#3A3D45] border border-gray-600 text-white rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required />
               </div>
               <div>
-                <label
-                  htmlFor="description"
-                  className="text-sm font-medium text-gray-300 mb-2 block"
-                >
-                  Description (Optional)
-                </label>
-                <textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="A short description of your media file..."
-                  rows={3}
-                  className="w-full bg-[#3A3D45] border border-gray-600 text-white rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+                <label htmlFor="description" className="text-sm font-medium text-gray-300 mb-2 block">Description (Optional)</label>
+                <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="A short description of your media file..." rows={3} className="w-full bg-[#3A3D45] border border-gray-600 text-white rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
               </div>
-              <button
-                type="submit"
-                disabled={isDetecting || !file}
-                className={`w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] ${
-                  isDetecting || !file
-                    ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                    : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl hover:shadow-blue-500/25"
-                }`}
-              >
-                {isDetecting ? (
-                  "Analyzing..."
-                ) : (
-                  <>
-                    <ShieldAlert className="w-5 h-5 mr-2" />
-                    Detect Deepfake
-                  </>
-                )}
-              </button>
+
+              <div className="flex items-center space-x-4">
+                <button
+                  type="button"
+                  onClick={handleVerifyOnChain}
+                  disabled={!file || isProcessing || isVerified}
+                  className="w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 disabled:cursor-not-allowed bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-600"
+                >
+                  {isVerified ? <Check className="w-5 h-5 mr-2" /> : <SearchCheck className="w-5 h-5 mr-2" />}
+                  {isVerifying ? "Verifying..." : isVerified ? "Verified" : "1. Verify Uniqueness"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={!isVerified || isProcessing}
+                  className="w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 disabled:cursor-not-allowed bg-gray-700 text-white hover:bg-gray-800 disabled:bg-gray-600"
+                >
+                  <ShieldAlert className="w-5 h-5 mr-2" />
+                  {isDetecting ? "Analyzing..." : "2. Detect Deepfake"}
+                </button>
+              </div>
             </form>
           </div>
 
           {deepfakeWarning && (
             <div className={`max-w-2xl mx-auto mt-6 p-4 border rounded-lg flex items-start space-x-4 ${
-              isHighDeepfakeDetected 
-                ? "bg-red-900/50 border-red-500/60" 
-                : "bg-yellow-900/50 border-yellow-500/60"
+              isHighDeepfakeDetected ? "bg-red-900/50 border-red-500/60" : "bg-yellow-900/50 border-yellow-500/60"
             }`}>
-              <ShieldAlert className={`w-6 h-6 flex-shrink-0 mt-1 ${
-                isHighDeepfakeDetected ? "text-red-400" : "text-yellow-400"
-              }`} />
+              <ShieldAlert className={`w-6 h-6 flex-shrink-0 mt-1 ${isHighDeepfakeDetected ? "text-red-400" : "text-yellow-400"}`} />
               <div>
-                <h4 className={`font-bold mt-1 ${
-                  isHighDeepfakeDetected ? "text-red-300" : "text-yellow-300"
-                }`}>
+                <h4 className={`font-bold mt-1 ${isHighDeepfakeDetected ? "text-red-300" : "text-yellow-300"}`}>
                   {isHighDeepfakeDetected ? "Deepfake Detected - Upload Blocked" : "Moderate Deepfake Risk"}
                 </h4>
-                <p className={`text-sm mt-1 ${
-                  isHighDeepfakeDetected ? "text-red-300/80" : "text-yellow-300/80"
-                }`}>
+                <p className={`text-sm mt-1 ${isHighDeepfakeDetected ? "text-red-300/80" : "text-yellow-300/80"}`}>
                   {deepfakeWarning}
                 </p>
                 {isHighDeepfakeDetected && (
@@ -398,6 +439,7 @@ export default function CreateTagPage() {
                         setPreparedData(null);
                         setDeepfakeWarning(null);
                         setIsHighDeepfakeDetected(false);
+                        setIsVerified(false);
                         if (fileInputRef.current) {
                           fileInputRef.current.value = "";
                         }
@@ -415,24 +457,22 @@ export default function CreateTagPage() {
           {preparedData && !isDetecting && !isHighDeepfakeDetected && (
             <div className="max-w-2xl mx-auto mt-6 p-4 bg-green-900/50 border border-green-500/60 rounded-lg flex items-center space-x-4">
               <CheckCircle className="w-6 h-6 text-green-400 flex-shrink-0" />
-              <p className="text-sm text-green-300 font-medium">
-                Analysis complete. You can now proceed to the review step.
-              </p>
+              <p className="text-sm text-green-300 font-medium">Analysis complete. You can now proceed to register the media.</p>
             </div>
           )}
 
           {!isHighDeepfakeDetected && (
             <div className="max-w-2xl mx-auto mt-6">
               <button
-                onClick={handleProceedToReview}
-                disabled={!preparedData || isDetecting || isHighDeepfakeDetected}
+                onClick={handleRegister}
+                disabled={!preparedData || isProcessing}
                 className={`w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] ${
-                  !preparedData || isDetecting || isHighDeepfakeDetected
+                  !preparedData || isProcessing
                     ? "bg-gray-600 text-gray-400 cursor-not-allowed"
                     : "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl hover:shadow-green-500/25"
                 }`}
               >
-                <span>Continue to Review</span>
+                <span>Register on Chain</span>
                 <ArrowRight className="w-5 h-5 ml-2" />
               </button>
             </div>
