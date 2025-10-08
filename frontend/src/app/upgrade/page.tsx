@@ -243,8 +243,7 @@ export default function UpgradePage() {
 
             <Button
               asChild
-              variant="outline"
-              className="px-8 py-3 border-gray-600 text-gray-300 hover:text-white hover:border-purple-500 hover:bg-purple-500/10 font-semibold rounded-lg transition-all duration-200 hover:scale-105"
+              className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl hover:shadow-emerald-500/25"
             >
               <Link href="/create-tag">
                 <Sparkles className="w-4 h-4 mr-2" />

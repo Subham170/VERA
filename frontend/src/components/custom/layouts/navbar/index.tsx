@@ -4,7 +4,7 @@ import { ProfileDropdown } from "@/components/custom/layouts/profile-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
-import {  Search, Sparkles } from "lucide-react";
+import { Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -18,22 +18,27 @@ function LogoMark() {
 
   return (
     <div
-      className="flex items-center gap-2 cursor-pointer group"
+      className="flex items-center gap-3 cursor-pointer group"
       onClick={handleLogoClick}
     >
       <div
         aria-hidden
-        className="size-6 rounded-full bg-brand/20 ring-1 ring-brand/30 grid place-items-center group-hover:bg-brand/30 transition-colors duration-200"
+        className="size-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 ring-1 ring-blue-500/30 grid place-items-center group-hover:from-blue-500/30 group-hover:to-purple-500/30 transition-all duration-300 group-hover:scale-105 group-hover:shadow-lg group-hover:shadow-blue-500/25"
       >
         <img
           src="/images/logo.png"
           alt="V.E.R.A. logo"
-          className="h-6 w-auto md:h-6 group-hover:scale-110 transition-transform duration-200"
+          className="h-6 w-auto group-hover:scale-110 transition-transform duration-300"
         />
       </div>
-      <span className="font-medium tracking-tight group-hover:text-blue-400 transition-colors duration-200">
-        V.E.R.A.
-      </span>
+      <div className="flex flex-col">
+        <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent group-hover:from-blue-300 group-hover:to-white transition-all duration-300">
+          V.E.R.A.
+        </span>
+        {/* <span className="text-xs text-gray-400 group-hover:text-blue-400 transition-colors duration-300">
+          Verify Everything Real Always
+        </span> */}
+      </div>
     </div>
   );
 }
@@ -42,21 +47,24 @@ function SearchInput() {
   return (
     <form
       action="#"
-      className="hidden md:flex items-center gap-2 rounded-md bg-[#2E3137] px-4 py-1 ring-1 ring-gray-600 hover:ring-blue-400/50 transition-all duration-200 shadow-sm hover:shadow-md"
+      className="hidden md:flex items-center gap-3 rounded-2xl bg-[#2E3137]/50 backdrop-blur-sm px-4 py-2.5 ring-1 ring-gray-600/50 hover:ring-blue-400/50 transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-blue-500/10 group"
       role="search"
     >
-      <Search className="size-4 text-gray-400" aria-hidden />
+      <Search
+        className="size-4 text-gray-400 group-hover:text-blue-400 transition-colors duration-300"
+        aria-hidden
+      />
       <input
         type="search"
         placeholder="Search for videos, images & audio"
         className={cn(
-          "w-72 bg-transparent text-sm text-white placeholder:text-gray-400/70 focus:outline-none"
+          "w-72 bg-transparent text-sm text-white placeholder:text-gray-400/70 focus:outline-none transition-all duration-300"
         )}
         aria-label="Search for videos, images and audio"
       />
       <button
         type="submit"
-        className="grid size-7 place-items-center rounded-full bg-gray-600 text-white hover:bg-blue-500 transition-all duration-200 cursor-pointer"
+        className="grid size-8 place-items-center rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition-all duration-300 cursor-pointer shadow-md hover:shadow-lg hover:scale-105"
         aria-label="Submit search"
       >
         <Search className="size-3.5" />
@@ -105,8 +113,8 @@ export default function SiteNavbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full text-white py-2 bg-[#181A1D] shadow-lg backdrop-blur-sm border-b border-gray-800/50">
-      <nav className="mx-auto flex max-w-screen-2xl items-center justify-between gap-3 px-4 py-3">
+    <header className="sticky top-0 z-40 w-full text-white bg-[#181A1D]/80 backdrop-blur-xl border-b border-gray-800/30 shadow-2xl">
+      <nav className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-6 py-4">
         <LogoMark />
 
         {!shouldHideSearchBar && (
@@ -115,14 +123,14 @@ export default function SiteNavbar() {
           </div>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={handleCreateTag}
             className={cn(
-              "hidden sm:inline-flex h-9 items-center rounded-full px-3 text-sm transition-all duration-200 hover:scale-105 cursor-pointer",
+              "hidden sm:inline-flex h-10 items-center rounded-xl px-4 text-sm font-medium transition-all duration-300 hover:scale-105 cursor-pointer",
               pathname === "/create-tag"
-                ? "bg-blue-600 text-white font-semibold shadow-md"
-                : "text-white hover:text-blue-400"
+                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/25"
+                : "text-white hover:text-blue-400 hover:bg-[#2E3137]/50 backdrop-blur-sm border border-transparent hover:border-gray-600/50"
             )}
           >
             Create tag
@@ -131,10 +139,10 @@ export default function SiteNavbar() {
           <Link
             href="/explore"
             className={cn(
-              "hidden sm:inline-flex h-9 items-center rounded-full px-3 text-sm transition-all duration-200 hover:scale-105 cursor-pointer",
+              "hidden sm:inline-flex h-10 items-center rounded-xl px-4 text-sm font-medium transition-all duration-300 hover:scale-105 cursor-pointer",
               pathname === "/explore"
-                ? "bg-blue-600 text-white font-semibold shadow-md"
-                : "text-white hover:text-blue-400"
+                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/25"
+                : "text-white hover:text-blue-400 hover:bg-[#2E3137]/50 backdrop-blur-sm border border-transparent hover:border-gray-600/50"
             )}
           >
             Explore
@@ -143,18 +151,18 @@ export default function SiteNavbar() {
           <Link
             href="/upgrade"
             className={cn(
-              "hidden md:inline-flex h-9 items-center gap-1 rounded-full px-3 text-sm transition-all duration-200 hover:scale-105 cursor-pointer group",
+              "hidden md:inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium transition-all duration-300 hover:scale-105 cursor-pointer group",
               pathname === "/upgrade"
-                ? "bg-blue-600 text-white font-semibold shadow-md"
-                : "text-white hover:text-blue-400"
+                ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg shadow-purple-500/25"
+                : "text-white hover:text-purple-400 hover:bg-[#2E3137]/50 backdrop-blur-sm border border-transparent hover:border-gray-600/50"
             )}
           >
             <Sparkles
               className={cn(
-                "size-4 transition-colors duration-200",
+                "size-4 transition-colors duration-300",
                 pathname === "/upgrade"
                   ? "text-white"
-                  : "text-blue-500 group-hover:text-blue-400"
+                  : "text-purple-500 group-hover:text-purple-400"
               )}
               aria-hidden
             />
@@ -180,10 +188,11 @@ export default function SiteNavbar() {
               ref={profileButtonRef}
               onClick={handleProfileClick}
               aria-label="Profile"
+              className="group"
             >
-              <Avatar className="size-9 ring-1 ring-gray-600 hover:ring-blue-400/50 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md">
+              <Avatar className="size-10 ring-2 ring-gray-600/50 hover:ring-blue-400/50 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl hover:shadow-blue-500/25 hover:scale-105">
                 <AvatarImage src="/avatar-placeholder.png" alt="Your profile" />
-                <AvatarFallback className="bg-[#2E3137] text-white hover:bg-[#3A3D45] transition-colors duration-200">
+                <AvatarFallback className="bg-gradient-to-br from-[#2E3137] to-[#3A3D45] text-white font-semibold group-hover:from-blue-500/20 group-hover:to-purple-500/20 transition-all duration-300">
                   YO
                 </AvatarFallback>
               </Avatar>
