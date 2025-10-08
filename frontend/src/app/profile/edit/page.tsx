@@ -111,53 +111,67 @@ export default function EditProfilePage() {
     const toastId = toast.loading("Saving all changes...");
 
     try {
-      const updatePromises = [];
+      let profile_img = null;
+      let banner_url = null;
 
-      const textUpdatePromise = fetch(
-        `${API_ENDPOINTS.USERS}/${connectedAddress}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, bio, email }),
-        }
-      );
-      updatePromises.push(textUpdatePromise);
-
+      // First, upload images if they exist and get the URLs
       if (profileImageFile) {
         const profileFormData = new FormData();
         profileFormData.append("profile_img", profileImageFile);
-        const profileImagePromise = fetch(
+        const profileResponse = await fetch(
           `${API_ENDPOINTS.USERS}/${connectedAddress}/profile-image`,
           {
             method: "PUT",
             body: profileFormData,
           }
         );
-        updatePromises.push(profileImagePromise);
+        
+        if (!profileResponse.ok) {
+          const errorData = await profileResponse.json();
+          throw new Error(errorData.message || "Failed to upload profile image");
+        }
+        
+        const profileData = await profileResponse.json();
+        profile_img = profileData.url;
       }
 
       if (bannerImageFile) {
         const bannerFormData = new FormData();
         bannerFormData.append("banner_url", bannerImageFile);
-        const bannerImagePromise = fetch(
+        const bannerResponse = await fetch(
           `${API_ENDPOINTS.USERS}/${connectedAddress}/banner-image`,
           {
             method: "PUT",
             body: bannerFormData,
           }
         );
-        updatePromises.push(bannerImagePromise);
+        
+        if (!bannerResponse.ok) {
+          const errorData = await bannerResponse.json();
+          throw new Error(errorData.message || "Failed to upload banner image");
+        }
+        
+        const bannerData = await bannerResponse.json();
+        banner_url = bannerData.url;
       }
 
-      const responses = await Promise.all(updatePromises);
+      // Now update the profile with all data including image URLs
+      const updateData: any = { username, bio, email };
+      if (profile_img) updateData.profile_img = profile_img;
+      if (banner_url) updateData.banner_url = banner_url;
 
-      for (const response of responses) {
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message || "An error occurred during one of the updates."
-          );
+      const updateResponse = await fetch(
+        `${API_ENDPOINTS.USERS}/${connectedAddress}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updateData),
         }
+      );
+
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json();
+        throw new Error(errorData.message || "Failed to update profile");
       }
 
       toast.success("Profile updated successfully!", { id: toastId });

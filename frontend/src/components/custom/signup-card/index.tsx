@@ -13,6 +13,7 @@ interface SignUpCardProps {
   connectedAddress: string | null;
   onConnectWallet: () => void;
   onSignUp: () => void;
+  onNavigateToLogin: () => void;
   isLoading: boolean;
 }
 
@@ -24,6 +25,7 @@ export function SignUpCard({
   connectedAddress,
   onConnectWallet,
   onSignUp,
+  onNavigateToLogin,
   isLoading,
 }: SignUpCardProps) {
 
@@ -83,7 +85,7 @@ export function SignUpCard({
           </Button>
         )}
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex flex-col space-y-3">
         <Button
           onClick={onSignUp}
           disabled={!username || !email || !connectedAddress || isLoading}
@@ -92,6 +94,16 @@ export function SignUpCard({
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isLoading ? "Creating Account..." : "Sign Up"}
         </Button>
+        
+        <div className="text-center">
+          <span className="text-sm text-white/70">Already have an account? </span>
+          <button
+            onClick={onNavigateToLogin}
+            className="text-sm text-blue-400 hover:text-blue-300 underline transition-colors cursor-pointer"
+          >
+            Login
+          </button>
+        </div>
       </CardFooter>
     </Card>
   );
