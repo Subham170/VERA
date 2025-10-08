@@ -123,8 +123,7 @@ export default function ExplorePage() {
 
             <Button
               asChild
-              variant="outline"
-              className="px-8 py-3 border-gray-600 text-gray-300 hover:text-white hover:border-blue-500 hover:bg-blue-500/10 font-semibold rounded-lg transition-all duration-200 hover:scale-105"
+              className="px-8 py-3 bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl hover:shadow-teal-500/25"
             >
               <Link href="/create-tag">
                 <Sparkles className="w-4 h-4 mr-2" />

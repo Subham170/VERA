@@ -78,7 +78,6 @@ export default function CreateTagPage() {
     setIsDetecting(true);
     setDeepfakeWarning(null);
     setPreparedData(null);
-    const toastId = toast.loading("Analyzing media for deepfake indicators...");
 
     try {
       const formData = new FormData();
@@ -122,12 +121,10 @@ export default function CreateTagPage() {
       };
 
       setPreparedData(tagDataPayload);
-      toast.success("Analysis complete. You can now proceed.", { id: toastId });
+      toast.success("Analysis complete. You can now proceed.");
     } catch (err: any) {
       console.error("Detection error:", err);
-      toast.error(err.message || "Could not analyze the media.", {
-        id: toastId,
-      });
+      toast.error(err.message || "Could not analyze the media.");
     } finally {
       setIsDetecting(false);
     }
@@ -161,9 +158,90 @@ export default function CreateTagPage() {
   return (
     <AuthenticatedLayout>
       <main className="min-h-screen bg-[#181A1D]">
+        {/* Loading Overlay */}
+        {isDetecting && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="bg-[#2A2D35] rounded-2xl p-8 max-w-md mx-4 border border-gray-700/50 shadow-2xl">
+              {/* Main Loading Animation */}
+              <div className="flex flex-col items-center space-y-6">
+                {/* Animated Shield Icon */}
+                <div className="relative">
+                  <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg">
+                    <ShieldAlert className="w-10 h-10 text-white animate-pulse" />
+                  </div>
+                  {/* Rotating Ring */}
+                  <div className="absolute inset-0 w-20 h-20 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+                  {/* Outer Pulse Ring */}
+                  <div className="absolute inset-0 w-20 h-20 border-2 border-blue-400/20 rounded-full animate-ping"></div>
+                </div>
+
+                {/* Loading Text */}
+                <div className="text-center space-y-2">
+                  <h3 className="text-xl font-bold text-white">
+                    Analyzing Media
+                  </h3>
+                  <p className="text-gray-400 text-sm">
+                    Detecting deepfake indicators...
+                  </p>
+                </div>
+
+                {/* Progress Steps */}
+                <div className="w-full space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-gray-300">
+                      Uploading media to secure servers
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div
+                      className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
+                      style={{ animationDelay: "0.5s" }}
+                    ></div>
+                    <span className="text-sm text-gray-300">
+                      Running AI analysis algorithms
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div
+                      className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
+                      style={{ animationDelay: "1s" }}
+                    ></div>
+                    <span className="text-sm text-gray-300">
+                      Verifying authenticity markers
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                    <span className="text-sm text-gray-500">
+                      Generating detailed report
+                    </span>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full animate-pulse"></div>
+                </div>
+
+                {/* Security Notice */}
+                <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 w-full">
+                  <div className="flex items-center space-x-2">
+                    <ShieldAlert className="w-4 h-4 text-blue-400" />
+                    <span className="text-xs text-blue-300">
+                      Your media is processed securely and never stored
+                      permanently
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <button
           onClick={handleCancel}
-          className="fixed top-20 right-4 w-10 h-10 bg-[#3A3D45] rounded-lg flex items-center justify-center hover:bg-[#4A4D55] transition-colors z-50"
+          className="fixed top-20 right-4 w-10 h-10 bg-[#3A3D45] rounded-lg flex items-center justify-center hover:bg-[#4A4D55] transition-colors z-40"
         >
           <X className="w-5 h-5 text-white" />
         </button>
@@ -261,9 +339,20 @@ export default function CreateTagPage() {
               <button
                 type="submit"
                 disabled={isDetecting || !file}
-                className="w-full bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 hover:bg-gray-800 disabled:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-500"
+                className={`w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] ${
+                  isDetecting || !file
+                    ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl hover:shadow-blue-500/25"
+                }`}
               >
-                {isDetecting ? "Analyzing..." : "Detect Deepfake"}
+                {isDetecting ? (
+                  "Analyzing..."
+                ) : (
+                  <>
+                    <ShieldAlert className="w-5 h-5 mr-2" />
+                    Detect Deepfake
+                  </>
+                )}
               </button>
             </form>
           </div>
@@ -295,7 +384,11 @@ export default function CreateTagPage() {
             <button
               onClick={handleProceedToReview}
               disabled={!preparedData || isDetecting}
-              className="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:text-gray-400"
+              className={`w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] ${
+                !preparedData || isDetecting
+                  ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl hover:shadow-green-500/25"
+              }`}
             >
               <span>Continue to Review</span>
               <ArrowRight className="w-5 h-5 ml-2" />
