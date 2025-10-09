@@ -178,8 +178,11 @@ export default function ReviewTagModal({
   };
 
   const estimateGasFees = async () => {
-    if (typeof window.ethereum === "undefined") {
-      // Set default values if MetaMask is not available
+    if (
+      typeof window === "undefined" ||
+      typeof window.ethereum === "undefined"
+    ) {
+      // Set default values if MetaMask is not available or during SSR
       setGasPrice("20");
       setGasFee("0.001");
       return;
@@ -243,6 +246,10 @@ export default function ReviewTagModal({
   }, []);
 
   const handleRegister = async () => {
+    if (typeof window === "undefined") {
+      return toast.error("This function can only be called in the browser.");
+    }
+
     const tagDataRaw = localStorage.getItem("uploadedTagData");
     const metadataRaw = localStorage.getItem("metadata");
     if (!tagDataRaw)
@@ -422,7 +429,26 @@ export default function ReviewTagModal({
     }
   };
 
-  const tagData = JSON.parse(localStorage.getItem("uploadedTagData") || "{}");
+  // Safely get tagData from localStorage, with fallback for SSR
+  const [tagData, setTagData] = useState<{
+    name?: string;
+    mediaType?: string;
+    filePreview?: string;
+  }>({});
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedData = localStorage.getItem("uploadedTagData");
+      if (storedData) {
+        try {
+          setTagData(JSON.parse(storedData));
+        } catch (error) {
+          console.error("Error parsing stored tag data:", error);
+        }
+      }
+    }
+  }, []);
+
   const fileName = tagData.name || defaultFileName;
   const mediaType = tagData.mediaType || defaultMediaType;
 
