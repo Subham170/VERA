@@ -18,7 +18,7 @@ const ABI = [
   "error MediaNotFound(bytes32 contentHash)",
 ];
 
-const CONTRACT_ADDRESS = "0xc8DfF35746db2604b9feEEb48828d9F721D24530";
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
 
 function base64ToFile(base64: string, fileName: string): File {
   const arr = base64.split(",");
@@ -77,7 +77,7 @@ function generateSha256Hash(file: File): Promise<string> {
 }
 
 function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
-  return new ethers.Contract(CONTRACT_ADDRESS, ABI, signerOrProvider);
+  return new ethers.Contract(CONTRACT_ADDRESS as string, ABI, signerOrProvider);
 }
 
 export default function ReviewTagModal({
