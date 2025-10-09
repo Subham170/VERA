@@ -1,5 +1,5 @@
-import Tag from "./model.js";
 import { deleteCloudinaryImage } from "../middleware/userUpload.js";
+import Tag from "./model.js";
 
 // Create a new tag
 export const createTag = async (req, res) => {
@@ -19,7 +19,14 @@ export const createTag = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!file_name || !hash_address || !address || !type || !mediacid || !metadatacid) {
+    if (
+      !file_name ||
+      !hash_address ||
+      !address ||
+      !type ||
+      !mediacid ||
+      !metadatacid
+    ) {
       return res.status(400).json({
         status: "error",
         message: "file_name, hash_address, address, and type are required",
@@ -89,8 +96,8 @@ export const createTag = async (req, res) => {
           file_name: tag.file_name,
           description: tag.description,
           hash_address: tag.hash_address,
-          metadatacid:tag.metadatacid,
-          mediacid:tag.mediacid,
+          metadatacid: tag.metadatacid,
+          mediacid: tag.mediacid,
           address: tag.address,
           type: tag.type,
           img_urls: tag.img_urls,
@@ -111,10 +118,10 @@ export const createTag = async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating tag:", error);
-    
+
     // Handle validation errors
     if (error.name === "ValidationError") {
-      const errors = Object.values(error.errors).map(err => err.message);
+      const errors = Object.values(error.errors).map((err) => err.message);
       return res.status(400).json({
         status: "error",
         message: "Validation error",
@@ -220,8 +227,8 @@ export const getTagById = async (req, res) => {
           file_name: tag.file_name,
           description: tag.description,
           hash_address: tag.hash_address,
-          metadatacid:tag.metadatacid,
-          mediacid:tag.mediacid,
+          metadatacid: tag.metadatacid,
+          mediacid: tag.mediacid,
           address: tag.address,
           type: tag.type,
           img_urls: tag.img_urls,
@@ -274,8 +281,8 @@ export const getTagByHash = async (req, res) => {
           file_name: tag.file_name,
           description: tag.description,
           hash_address: tag.hash_address,
-          metadatacid:tag.metadatacid,
-          mediacid:tag.mediacid,
+          metadatacid: tag.metadatacid,
+          mediacid: tag.mediacid,
           address: tag.address,
           type: tag.type,
           img_urls: tag.img_urls,
@@ -318,7 +325,7 @@ export const getTagsByUser = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Get tags
-    const tags = await Tag.find(filter)
+    const tags = await Tag.find(filter);
 
     // Get total count
     const total = await Tag.countDocuments(filter);
@@ -398,16 +405,17 @@ export const updateTag = async (req, res) => {
     const oldAudioUrls = existingTag.audio_urls || [];
 
     // Update tag
-    const updatedTag = await Tag.findByIdAndUpdate(
-      id,
-      updateFields,
-      { new: true, runValidators: true }
-    );
+    const updatedTag = await Tag.findByIdAndUpdate(id, updateFields, {
+      new: true,
+      runValidators: true,
+    });
 
     // Clean up old media URLs from Cloudinary if they were replaced
     if (updateFields.img_urls) {
       const newImgUrls = updateFields.img_urls;
-      const urlsToDelete = oldImgUrls.filter(url => !newImgUrls.includes(url));
+      const urlsToDelete = oldImgUrls.filter(
+        (url) => !newImgUrls.includes(url)
+      );
       for (const url of urlsToDelete) {
         await deleteCloudinaryImage(url);
       }
@@ -415,7 +423,9 @@ export const updateTag = async (req, res) => {
 
     if (updateFields.video_urls) {
       const newVideoUrls = updateFields.video_urls;
-      const urlsToDelete = oldVideoUrls.filter(url => !newVideoUrls.includes(url));
+      const urlsToDelete = oldVideoUrls.filter(
+        (url) => !newVideoUrls.includes(url)
+      );
       for (const url of urlsToDelete) {
         await deleteCloudinaryImage(url);
       }
@@ -423,7 +433,9 @@ export const updateTag = async (req, res) => {
 
     if (updateFields.audio_urls) {
       const newAudioUrls = updateFields.audio_urls;
-      const urlsToDelete = oldAudioUrls.filter(url => !newAudioUrls.includes(url));
+      const urlsToDelete = oldAudioUrls.filter(
+        (url) => !newAudioUrls.includes(url)
+      );
       for (const url of urlsToDelete) {
         await deleteCloudinaryImage(url);
       }
@@ -438,8 +450,8 @@ export const updateTag = async (req, res) => {
           file_name: updatedTag.file_name,
           description: updatedTag.description,
           hash_address: updatedTag.hash_address,
-          metadatacid:updatedTag.metadatacid,
-          mediacid:updatedTag.mediacid,
+          metadatacid: updatedTag.metadatacid,
+          mediacid: updatedTag.mediacid,
           address: updatedTag.address,
           type: updatedTag.type,
           img_urls: updatedTag.img_urls,
@@ -460,10 +472,10 @@ export const updateTag = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating tag:", error);
-    
+
     // Handle validation errors
     if (error.name === "ValidationError") {
-      const errors = Object.values(error.errors).map(err => err.message);
+      const errors = Object.values(error.errors).map((err) => err.message);
       return res.status(400).json({
         status: "error",
         message: "Validation error",

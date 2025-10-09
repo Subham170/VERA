@@ -346,15 +346,18 @@ export default function TagPage() {
       ]);
 
       toast.loading("Deleting from database...", { id: toastId });
-      const deleteResponse = await fetch(
-        `http://localhost:5000/api/tags/${id}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const deleteResponse = await fetch(API_ENDPOINTS.TAG_BY_ID(id), {
+        method: "DELETE",
+      });
 
       if (!deleteResponse.ok) {
         const errorData = await deleteResponse.json();
+        console.error("Database deletion failed:", {
+          status: deleteResponse.status,
+          statusText: deleteResponse.statusText,
+          errorData,
+          url: API_ENDPOINTS.TAG_BY_ID(id),
+        });
         throw new Error(errorData.message || "Failed to delete from database.");
       }
 
