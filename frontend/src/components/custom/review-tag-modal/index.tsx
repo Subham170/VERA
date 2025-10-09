@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Check, Eye, Wallet, UploadCloud } from "lucide-react";
+import { API_ENDPOINTS } from "@/lib/config";
 import { ethers, type TransactionResponse } from "ethers";
+import { Check, Eye, RefreshCw, Wallet, Zap } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 const ABI = [
@@ -15,12 +17,13 @@ const ABI = [
   "error MediaNotFound(bytes32 contentHash)",
 ];
 
-const CONTRACT_ADDRESS = "0x6Aa81Da4f2505F545370a5fC6DAceecD2B9F29E6";
+const CONTRACT_ADDRESS = "0xc8DfF35746db2604b9feEEb48828d9F721D24530";
 
 function base64ToFile(base64: string, fileName: string): File {
   const arr = base64.split(",");
   const mimeMatch = arr[0].match(/:(.*?);/);
-  if (!mimeMatch) throw new Error("Invalid Base64 string: MIME type not found.");
+  if (!mimeMatch)
+    throw new Error("Invalid Base64 string: MIME type not found.");
   const mime = mimeMatch[1];
   const bstr = atob(arr[1]);
   let n = bstr.length;
@@ -41,10 +44,13 @@ async function uploadFileToPinata(file: File): Promise<string> {
   });
   if (!res.ok) {
     const errorBody = await res.text();
-    throw new Error(`Failed to upload to Pinata: ${res.statusText} - ${errorBody}`);
+    throw new Error(
+      `Failed to upload to Pinata: ${res.statusText} - ${errorBody}`
+    );
   }
   const result = await res.json();
-  if (!result.IpfsHash) throw new Error("Invalid response from Pinata: IPFS hash not found.");
+  if (!result.IpfsHash)
+    throw new Error("Invalid response from Pinata: IPFS hash not found.");
   return result.IpfsHash;
 }
 
@@ -56,7 +62,9 @@ function generateSha256Hash(file: File): Promise<string> {
         const data = reader.result as ArrayBuffer;
         const hashBuffer = await crypto.subtle.digest("SHA-256", data);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+        const hashHex = hashArray
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
         resolve(hashHex);
       } catch (err) {
         reject(err);
@@ -88,72 +96,268 @@ export default function ReviewTagModal({
   description?: string;
   mediaType?: string;
 }) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadData, setUploadData] = useState<{ mediaCid: string; metadataCid: string; contentHash: string } | null>(null);
+  const router = useRouter();
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [gasFee, setGasFee] = useState<string>("0");
+  const [gasPrice, setGasPrice] = useState<string>("0");
+  const [isLoadingFees, setIsLoadingFees] = useState(false);
+  const [ethPrice, setEthPrice] = useState<number>(0);
+  const [gasPriceSource, setGasPriceSource] = useState<string>("Etherscan");
+  const [networkInfo, setNetworkInfo] = useState<{
+    name: string;
+    chainId: string;
+  }>({ name: "Sepolia Testnet", chainId: "0xaa36a7" });
 
-  const handleUploads = async () => {
-    const tagDataRaw = localStorage.getItem("uploadedTagData");
-    const metadataRaw = localStorage.getItem("metadata");
-    if (!tagDataRaw) return toast.error("Media data not found. Please go back and re-upload.");
-    if (!metadataRaw) return toast.error("Metadata not found. Please go back and re-analyze.");
-    if (typeof window.ethereum === "undefined") return toast.error("MetaMask is not installed.");
+  const fetchEthPrice = async () => {
+    // For Sepolia testnet, ETH has no real value
+    // We'll set a placeholder value to indicate it's testnet
+    setEthPrice(0);
+  };
 
-    setIsUploading(true);
-    const toastId = toast.loading("Step 1: Uploading files to IPFS...");
+  const getNetworkInfo = async () => {
+    if (typeof window.ethereum === "undefined") return;
 
     try {
-      const tagData = JSON.parse(tagDataRaw);
-      
-      const mediaFile = base64ToFile(tagData.filePreview, tagData.name);
-      const metadataFile = new File([metadataRaw], "metadata.json", { type: "application/json" });
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const network = await provider.getNetwork();
 
-      const [mediaCid, metadataCid, contentHash] = await Promise.all([
-        uploadFileToPinata(mediaFile),
-        uploadFileToPinata(metadataFile),
-        generateSha256Hash(mediaFile)
-      ]);
+      // Get network name from chainId
+      const networkNames: { [key: string]: string } = {
+        "0xaa36a7": "Sepolia Testnet",
+        "0x1": "Ethereum Mainnet",
+        "0x5": "Goerli Testnet",
+        "0x89": "Polygon Mainnet",
+        "0x13881": "Polygon Mumbai Testnet",
+      };
 
-      setUploadData({ mediaCid, metadataCid, contentHash });
+      const chainId = `0x${network.chainId.toString(16)}`;
+      const networkName =
+        networkNames[chainId] || `Chain ID: ${network.chainId}`;
 
-      toast.success("Step 1 Complete! Files uploaded. Ready to register.", { id: toastId });
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "An unexpected error occurred during upload.", { id: toastId });
-    } finally {
-      setIsUploading(false);
+      setNetworkInfo({
+        name: networkName,
+        chainId: chainId,
+      });
+    } catch (error) {
+      console.error("Error getting network info:", error);
     }
   };
 
-  const handlePayFees = async () => {
-    if (typeof window.ethereum === "undefined") return toast.error("MetaMask is not installed.");
-    if (!uploadData) return toast.error("Please upload the files first.");
+  const getGasPriceFromEtherscan = async () => {
+    try {
+      // Fetch gas prices from Etherscan API for Sepolia testnet
+      // Note: Etherscan API doesn't require an API key for basic gas price queries
+      const response = await fetch(
+        "https://api-sepolia.etherscan.io/api?module=gastracker&action=gasoracle"
+      );
+      const data = await response.json();
 
-    setIsLoading(true);
-    const toastId = toast.loading("Step 2: Awaiting on-chain registration...");
+      if (data.status === "1" && data.result) {
+        // Use the "Safe" gas price from Etherscan (recommended for most transactions)
+        // SafeGasPrice is typically the 30th percentile of recent gas prices
+        const safeGasPrice = data.result.SafeGasPrice;
+        console.log("Etherscan gas prices:", data.result);
+        setGasPriceSource("Etherscan Sepolia");
+        return ethers.parseUnits(safeGasPrice, "gwei");
+      }
+    } catch (error) {
+      console.error("Error fetching gas price from Etherscan:", error);
+    }
 
+    // Fallback to default if Etherscan fails
+    setGasPriceSource("Default");
+    return ethers.parseUnits("20", "gwei");
+  };
+
+  const estimateGasFees = async () => {
+    if (typeof window.ethereum === "undefined") {
+      // Set default values if MetaMask is not available
+      setGasPrice("20");
+      setGasFee("0.001");
+      return;
+    }
+
+    setIsLoadingFees(true);
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = getEthersContract(signer);
-      const formattedHash = '0x' + uploadData.contentHash;
+
+      // Get current gas price from Etherscan for Sepolia
+      const currentGasPrice = await getGasPriceFromEtherscan();
+      setGasPrice(ethers.formatUnits(currentGasPrice, "gwei"));
+
+      // Estimate gas for registerMedia function
+      const tagDataRaw = localStorage.getItem("uploadedTagData");
+      if (tagDataRaw) {
+        const tagData = JSON.parse(tagDataRaw);
+        const mediaFile = base64ToFile(tagData.filePreview, tagData.name);
+        const metadataRaw = localStorage.getItem("metadata");
+
+        if (metadataRaw) {
+          const metadataFile = new File([metadataRaw], "metadata.json", {
+            type: "application/json",
+          });
+
+          const [mediaCid, metadataCid, contentHash] = await Promise.all([
+            uploadFileToPinata(mediaFile),
+            uploadFileToPinata(metadataFile),
+            generateSha256Hash(mediaFile),
+          ]);
+
+          const formattedHash = "0x" + contentHash;
+
+          // Estimate gas with current gas price
+          const gasEstimate = await contract.registerMedia.estimateGas(
+            mediaCid,
+            metadataCid,
+            formattedHash
+          );
+
+          const estimatedFee = gasEstimate * currentGasPrice;
+          setGasFee(ethers.formatEther(estimatedFee));
+        }
+      }
+    } catch (error) {
+      console.error("Error estimating gas fees:", error);
+      // Set default values if estimation fails
+      setGasPrice("20");
+      setGasFee("0.001");
+    } finally {
+      setIsLoadingFees(false);
+    }
+  };
+
+  useEffect(() => {
+    estimateGasFees();
+    fetchEthPrice();
+    getNetworkInfo();
+  }, []);
+
+  const handleRegister = async () => {
+    const tagDataRaw = localStorage.getItem("uploadedTagData");
+    const metadataRaw = localStorage.getItem("metadata");
+    if (!tagDataRaw)
+      return toast.error("Media data not found. Please re-analyze.");
+    if (!metadataRaw)
+      return toast.error("Metadata not found. Please re-analyze.");
+    if (typeof window.ethereum === "undefined")
+      return toast.error("MetaMask is not installed.");
+
+    setIsRegistering(true);
+    const toastId = toast.loading("Starting registration process...");
+
+    try {
+      // Switch to Sepolia network
+      toast.loading("Switching to Sepolia network...", { id: toastId });
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: "0xaa36a7" }], // Sepolia chain ID
+      } as any);
+    } catch (switchError: any) {
+      // If Sepolia is not added to MetaMask, add it
+      if (switchError.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: "0xaa36a7",
+                chainName: "Sepolia",
+                rpcUrls: ["https://sepolia.infura.io/v3/"],
+                nativeCurrency: {
+                  name: "SepoliaETH",
+                  symbol: "ETH",
+                  decimals: 18,
+                },
+                blockExplorerUrls: ["https://sepolia.etherscan.io"],
+              },
+            ],
+          } as any);
+        } catch (addError) {
+          toast.error("Failed to add Sepolia network to MetaMask.", {
+            id: toastId,
+          });
+          setIsRegistering(false);
+          return;
+        }
+      } else {
+        toast.error("Failed to switch to Sepolia network.", { id: toastId });
+        setIsRegistering(false);
+        return;
+      }
+    }
+
+    try {
+      const tagData = JSON.parse(tagDataRaw);
+      const mediaFile = base64ToFile(tagData.filePreview, tagData.name);
+      const metadataFile = new File([metadataRaw], "metadata.json", {
+        type: "application/json",
+      });
+
+      toast.loading("Uploading files to IPFS...", { id: toastId });
+      const [mediaCid, metadataCid, contentHash] = await Promise.all([
+        uploadFileToPinata(mediaFile),
+        uploadFileToPinata(metadataFile),
+        generateSha256Hash(mediaFile),
+      ]);
+
+      toast.loading("Saving record to database...", { id: toastId });
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const walletAddress = await signer.getAddress();
+
+      const mediaType = tagData.mediaType || "image";
+      const fileFieldName = `${mediaType}s`;
+
+      const routeMap: Record<string, string> = {
+        images: API_ENDPOINTS.TAGS_WITH_IMAGES,
+        videos: API_ENDPOINTS.TAGS_WITH_VIDEOS,
+        audios: API_ENDPOINTS.TAGS_WITH_AUDIO,
+      };
+      const route = routeMap[fileFieldName] || API_ENDPOINTS.TAGS;
+
+      const backendFormData = new FormData();
+      backendFormData.append(fileFieldName, mediaFile);
+      backendFormData.append("file_name", tagData.name);
+      backendFormData.append("hash_address", contentHash);
+      backendFormData.append("mediacid", mediaCid);
+      backendFormData.append("metadatacid", metadataCid);
+      backendFormData.append("address", walletAddress);
+      backendFormData.append("type", mediaType === "image" ? "img" : mediaType);
+      console.log(backendFormData.get("mediacid"));
+      const backendRes = await fetch(route, {
+        method: "POST",
+        body: backendFormData,
+      });
+      if (!backendRes.ok) {
+        const errorData = await backendRes.json();
+        throw new Error(errorData.message || "Failed to save to database.");
+      }
+
+      toast.loading("Awaiting on-chain confirmation...", { id: toastId });
+      const contract = getEthersContract(signer);
+      const formattedHash = "0x" + contentHash;
 
       const tx: TransactionResponse = await contract.registerMedia(
-        uploadData.mediaCid,
-        uploadData.metadataCid,
+        mediaCid,
+        metadataCid,
         formattedHash
       );
       await tx.wait();
 
-      toast.success("Step 2 Complete! Media registered on-chain.", { id: toastId });
+      toast.success("Media successfully registered on-chain!", { id: toastId });
       localStorage.removeItem("uploadedTagData");
       localStorage.removeItem("metadata");
-      onCancel?.();
+      router.push("/");
     } catch (err: any) {
-      console.error(err);
-      toast.error(err.reason || err.message || "An unexpected error occurred.", { id: toastId });
+      console.error("Registration error:", err);
+      toast.error(
+        err.reason || err.message || "An unexpected error occurred.",
+        { id: toastId }
+      );
     } finally {
-      setIsLoading(false);
+      setIsRegistering(false);
     }
   };
 
@@ -166,7 +370,9 @@ export default function ReviewTagModal({
       <Card className="bg-[#2A2D35] border-[#3A3D45] shadow-2xl">
         <CardContent className="p-8">
           <h1 className="text-3xl font-bold text-white mb-4">
-            {isBulkUpload ? "Review your bulk media collection" : "Review your media tag"}
+            {isBulkUpload
+              ? "Review your bulk media collection"
+              : "Review your media tag"}
           </h1>
           <p className="text-gray-300 text-base mb-8">
             {isBulkUpload
@@ -175,13 +381,18 @@ export default function ReviewTagModal({
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Media Preview Card */}
             <Card className="bg-[#3A3D45] border-[#4A4D55]">
               <CardContent className="p-6">
                 <div className="space-y-4">
                   <div className="relative">
                     <div className="w-full h-64 bg-gradient-to-br from-gray-600 to-gray-800 rounded-lg flex items-center justify-center relative overflow-hidden">
                       {tagData.filePreview ? (
-                        <img src={tagData.filePreview} alt="Media Preview" className="w-full h-full object-cover" />
+                        <img
+                          src={tagData.filePreview}
+                          alt="Media Preview"
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <div className="text-center text-white">
                           <div className="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -200,8 +411,111 @@ export default function ReviewTagModal({
                       {isBulkUpload ? collectionName : fileName}
                     </h3>
                     <p className="text-blue-400 text-sm">
-                      {isBulkUpload ? `${fileCount} files in collection` : `@${mediaType} media`}
+                      {isBulkUpload
+                        ? `${fileCount} files in collection`
+                        : `@${mediaType} media`}
                     </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Transaction Fee Card */}
+            <Card className="bg-[#3A3D45] border-[#4A4D55]">
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-white font-semibold flex items-center">
+                      <Zap className="w-5 h-5 mr-2 text-blue-400" />
+                      Transaction Fees
+                    </h3>
+                    <Button
+                      onClick={() => {
+                        estimateGasFees();
+                        getNetworkInfo();
+                      }}
+                      disabled={isLoadingFees}
+                      className="bg-gray-600 hover:bg-gray-700 text-white p-2 h-8 w-8"
+                    >
+                      <RefreshCw
+                        className={`w-4 h-4 ${
+                          isLoadingFees ? "animate-spin" : ""
+                        }`}
+                      />
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="bg-[#2A2D35] rounded-lg p-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-gray-300 text-sm">Gas Price</span>
+                        <div className="text-right">
+                          <div className="text-white font-medium">
+                            {isLoadingFees
+                              ? "..."
+                              : `${parseFloat(gasPrice).toFixed(2)} Gwei`}
+                          </div>
+                          <div className="text-gray-400 text-xs">
+                            via {gasPriceSource}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-300 text-sm">
+                          Estimated Fee
+                        </span>
+                        <div className="text-right">
+                          <div className="text-green-400 font-semibold">
+                            {isLoadingFees
+                              ? "..."
+                              : `${parseFloat(gasFee).toFixed(6)} ETH`}
+                          </div>
+                          <div className="text-gray-400 text-xs">
+                            Testnet (No Real Value)
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#2A2D35] rounded-lg p-4">
+                      <div className="text-center">
+                        <p className="text-gray-300 text-sm mb-1">Network</p>
+                        <p className="text-blue-400 font-medium">
+                          {networkInfo.name}
+                        </p>
+                        <p className="text-gray-400 text-xs">
+                          Chain ID: {networkInfo.chainId}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#2A2D35] rounded-lg p-4">
+                      <div className="text-center">
+                        <p className="text-gray-300 text-sm mb-1">Contract</p>
+                        <p className="text-gray-400 text-xs font-mono break-all">
+                          {CONTRACT_ADDRESS}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#1a1d23] border border-yellow-500/30 rounded-lg p-4">
+                      <div className="text-center">
+                        <p className="text-yellow-400 text-sm font-medium mb-1">
+                          💡 Need SepoliaETH?
+                        </p>
+                        <p className="text-gray-300 text-xs">
+                          Get free testnet ETH from{" "}
+                          <a
+                            href="https://sepoliafaucet.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:text-blue-300 underline"
+                          >
+                            Sepolia Faucet
+                          </a>
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -219,24 +533,13 @@ export default function ReviewTagModal({
 
             <div className="flex items-center space-x-3">
               <Button
-                onClick={handleUploads}
-                className="bg-gray-600 text-white hover:bg-gray-700 transition-all duration-200"
-                disabled={isUploading || isLoading || !!uploadData}
+                onClick={handleRegister}
+                className="bg-blue-600 text-white hover:bg-blue-700 px-6 py-3 transition-all duration-200 shadow-lg hover:shadow-xl"
+                disabled={isRegistering}
               >
-                {uploadData ? <Check className="w-4 h-4 mr-2" /> : <UploadCloud className="w-4 h-4 mr-2" />}
-                {isUploading ? "Uploading..." : uploadData ? "Uploaded" : "1. Upload Files"}
+                <Wallet className="w-4 h-4 mr-2" />
+                {isRegistering ? "Processing..." : "Register on Chain"}
               </Button>
-
-              {uploadData && (
-                <Button
-                  onClick={handlePayFees}
-                  className="bg-blue-600 text-white hover:bg-blue-700 px-6 py-3 transition-all duration-200 shadow-lg hover:shadow-xl"
-                  disabled={isLoading || isUploading}
-                >
-                  <Wallet className="w-4 h-4 mr-2" />
-                  {isLoading ? "Processing..." : "2. Pay & Register"}
-                </Button>
-              )}
             </div>
           </div>
         </CardContent>
