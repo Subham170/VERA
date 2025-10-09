@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingModal from "@/components/custom/loading-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { API_ENDPOINTS } from "@/lib/config";
@@ -107,6 +108,13 @@ export default function ReviewTagModal({
     name: string;
     chainId: string;
   }>({ name: "Sepolia Testnet", chainId: "0xaa36a7" });
+  const [loadingModal, setLoadingModal] = useState({
+    isVisible: false,
+    title: "",
+    subtitle: "",
+    steps: [] as { text: string; completed: boolean }[],
+    progress: 0,
+  });
 
   const fetchEthPrice = async () => {
     // For Sepolia testnet, ETH has no real value
@@ -245,11 +253,31 @@ export default function ReviewTagModal({
       return toast.error("MetaMask is not installed.");
 
     setIsRegistering(true);
-    const toastId = toast.loading("Starting registration process...");
+
+    // Initialize loading modal
+    setLoadingModal({
+      isVisible: true,
+      title: "Registering Media",
+      subtitle: "Processing blockchain registration...",
+      steps: [
+        { text: "Connecting to Sepolia network", completed: false },
+        { text: "Uploading files to IPFS", completed: false },
+        { text: "Saving record to database", completed: false },
+        { text: "Confirming on blockchain", completed: false },
+      ],
+      progress: 0,
+    });
 
     try {
-      // Switch to Sepolia network
-      toast.loading("Switching to Sepolia network...", { id: toastId });
+      // Step 1: Switch to Sepolia network
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 10,
+        steps: prev.steps.map((step, index) =>
+          index === 0 ? { ...step, completed: true } : step
+        ),
+      }));
+
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: "0xaa36a7" }], // Sepolia chain ID
@@ -275,15 +303,15 @@ export default function ReviewTagModal({
             ],
           } as any);
         } catch (addError) {
-          toast.error("Failed to add Sepolia network to MetaMask.", {
-            id: toastId,
-          });
+          toast.error("Failed to add Sepolia network to MetaMask.");
           setIsRegistering(false);
+          setLoadingModal((prev) => ({ ...prev, isVisible: false }));
           return;
         }
       } else {
-        toast.error("Failed to switch to Sepolia network.", { id: toastId });
+        toast.error("Failed to switch to Sepolia network.");
         setIsRegistering(false);
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
         return;
       }
     }
@@ -295,14 +323,30 @@ export default function ReviewTagModal({
         type: "application/json",
       });
 
-      toast.loading("Uploading files to IPFS...", { id: toastId });
+      // Step 2: Upload files to IPFS
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 30,
+        steps: prev.steps.map((step, index) =>
+          index === 1 ? { ...step, completed: true } : step
+        ),
+      }));
+
       const [mediaCid, metadataCid, contentHash] = await Promise.all([
         uploadFileToPinata(mediaFile),
         uploadFileToPinata(metadataFile),
         generateSha256Hash(mediaFile),
       ]);
 
-      toast.loading("Saving record to database...", { id: toastId });
+      // Step 3: Save to database
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 60,
+        steps: prev.steps.map((step, index) =>
+          index === 2 ? { ...step, completed: true } : step
+        ),
+      }));
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const walletAddress = await signer.getAddress();
@@ -325,7 +369,7 @@ export default function ReviewTagModal({
       backendFormData.append("metadatacid", metadataCid);
       backendFormData.append("address", walletAddress);
       backendFormData.append("type", mediaType === "image" ? "img" : mediaType);
-      console.log(backendFormData.get("mediacid"));
+
       const backendRes = await fetch(route, {
         method: "POST",
         body: backendFormData,
@@ -335,7 +379,15 @@ export default function ReviewTagModal({
         throw new Error(errorData.message || "Failed to save to database.");
       }
 
-      toast.loading("Awaiting on-chain confirmation...", { id: toastId });
+      // Step 4: Confirm on blockchain
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 80,
+        steps: prev.steps.map((step, index) =>
+          index === 3 ? { ...step, completed: true } : step
+        ),
+      }));
+
       const contract = getEthersContract(signer);
       const formattedHash = "0x" + contentHash;
 
@@ -346,16 +398,25 @@ export default function ReviewTagModal({
       );
       await tx.wait();
 
-      toast.success("Media successfully registered on-chain!", { id: toastId });
+      // Complete
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 100,
+      }));
+
+      toast.success("Media successfully registered on-chain!");
       localStorage.removeItem("uploadedTagData");
       localStorage.removeItem("metadata");
-      router.push("/");
+
+      // Close modal and redirect after a brief delay
+      setTimeout(() => {
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+        router.push("/");
+      }, 1000);
     } catch (err: any) {
       console.error("Registration error:", err);
-      toast.error(
-        err.reason || err.message || "An unexpected error occurred.",
-        { id: toastId }
-      );
+      toast.error(err.reason || err.message || "An unexpected error occurred.");
+      setLoadingModal((prev) => ({ ...prev, isVisible: false }));
     } finally {
       setIsRegistering(false);
     }
@@ -366,184 +427,198 @@ export default function ReviewTagModal({
   const mediaType = tagData.mediaType || defaultMediaType;
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <Card className="bg-[#2A2D35] border-[#3A3D45] shadow-2xl">
-        <CardContent className="p-8">
-          <h1 className="text-3xl font-bold text-white mb-4">
-            {isBulkUpload
-              ? "Review your bulk media collection"
-              : "Review your media tag"}
-          </h1>
-          <p className="text-gray-300 text-base mb-8">
-            {isBulkUpload
-              ? `Review your bulk media collection (${fileCount} files) and continue once you're happy with it`
-              : "Check out your media tag preview and continue once you're happy with it"}
-          </p>
+    <>
+      <LoadingModal
+        isVisible={loadingModal.isVisible}
+        title={loadingModal.title}
+        subtitle={loadingModal.subtitle}
+        steps={loadingModal.steps}
+        progress={loadingModal.progress}
+        showSecurityNote={true}
+      />
+      <div className="max-w-4xl mx-auto">
+        <Card className="bg-[#2A2D35] border-[#3A3D45] shadow-2xl">
+          <CardContent className="p-8">
+            <h1 className="text-3xl font-bold text-white mb-4">
+              {isBulkUpload
+                ? "Review your bulk media collection"
+                : "Review your media tag"}
+            </h1>
+            <p className="text-gray-300 text-base mb-8">
+              {isBulkUpload
+                ? `Review your bulk media collection (${fileCount} files) and continue once you're happy with it`
+                : "Check out your media tag preview and continue once you're happy with it"}
+            </p>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Media Preview Card */}
-            <Card className="bg-[#3A3D45] border-[#4A4D55]">
-              <CardContent className="p-6">
-                <div className="space-y-4">
-                  <div className="relative">
-                    <div className="w-full h-64 bg-gradient-to-br from-gray-600 to-gray-800 rounded-lg flex items-center justify-center relative overflow-hidden">
-                      {tagData.filePreview ? (
-                        <img
-                          src={tagData.filePreview}
-                          alt="Media Preview"
-                          className="w-full h-full object-cover"
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              {/* Media Preview Card */}
+              <Card className="bg-[#3A3D45] border-[#4A4D55]">
+                <CardContent className="p-6">
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <div className="w-full h-64 bg-gradient-to-br from-gray-600 to-gray-800 rounded-lg flex items-center justify-center relative overflow-hidden">
+                        {tagData.filePreview ? (
+                          <img
+                            src={tagData.filePreview}
+                            alt="Media Preview"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="text-center text-white">
+                            <div className="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <Eye className="w-12 h-12 text-blue-400" />
+                            </div>
+                            <p className="text-sm text-gray-400">
+                              Media Preview
+                            </p>
+                          </div>
+                        )}
+                        <div className="absolute bottom-3 right-3 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                          <Check className="w-5 h-5 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-white font-semibold truncate">
+                        {isBulkUpload ? collectionName : fileName}
+                      </h3>
+                      <p className="text-blue-400 text-sm">
+                        {isBulkUpload
+                          ? `${fileCount} files in collection`
+                          : `@${mediaType} media`}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Transaction Fee Card */}
+              <Card className="bg-[#3A3D45] border-[#4A4D55]">
+                <CardContent className="p-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-white font-semibold flex items-center">
+                        <Zap className="w-5 h-5 mr-2 text-blue-400" />
+                        Transaction Fees
+                      </h3>
+                      <Button
+                        onClick={() => {
+                          estimateGasFees();
+                          getNetworkInfo();
+                        }}
+                        disabled={isLoadingFees}
+                        className="bg-gray-600 hover:bg-gray-700 text-white p-2 h-8 w-8"
+                      >
+                        <RefreshCw
+                          className={`w-4 h-4 ${
+                            isLoadingFees ? "animate-spin" : ""
+                          }`}
                         />
-                      ) : (
-                        <div className="text-center text-white">
-                          <div className="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Eye className="w-12 h-12 text-blue-400" />
-                          </div>
-                          <p className="text-sm text-gray-400">Media Preview</p>
-                        </div>
-                      )}
-                      <div className="absolute bottom-3 right-3 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                        <Check className="w-5 h-5 text-white" />
-                      </div>
+                      </Button>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-white font-semibold truncate">
-                      {isBulkUpload ? collectionName : fileName}
-                    </h3>
-                    <p className="text-blue-400 text-sm">
-                      {isBulkUpload
-                        ? `${fileCount} files in collection`
-                        : `@${mediaType} media`}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Transaction Fee Card */}
-            <Card className="bg-[#3A3D45] border-[#4A4D55]">
-              <CardContent className="p-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-white font-semibold flex items-center">
-                      <Zap className="w-5 h-5 mr-2 text-blue-400" />
-                      Transaction Fees
-                    </h3>
-                    <Button
-                      onClick={() => {
-                        estimateGasFees();
-                        getNetworkInfo();
-                      }}
-                      disabled={isLoadingFees}
-                      className="bg-gray-600 hover:bg-gray-700 text-white p-2 h-8 w-8"
-                    >
-                      <RefreshCw
-                        className={`w-4 h-4 ${
-                          isLoadingFees ? "animate-spin" : ""
-                        }`}
-                      />
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="bg-[#2A2D35] rounded-lg p-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-300 text-sm">Gas Price</span>
-                        <div className="text-right">
-                          <div className="text-white font-medium">
-                            {isLoadingFees
-                              ? "..."
-                              : `${parseFloat(gasPrice).toFixed(2)} Gwei`}
+                    <div className="space-y-3">
+                      <div className="bg-[#2A2D35] rounded-lg p-4">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-gray-300 text-sm">
+                            Gas Price
+                          </span>
+                          <div className="text-right">
+                            <div className="text-white font-medium">
+                              {isLoadingFees
+                                ? "..."
+                                : `${parseFloat(gasPrice).toFixed(2)} Gwei`}
+                            </div>
+                            <div className="text-gray-400 text-xs">
+                              via {gasPriceSource}
+                            </div>
                           </div>
-                          <div className="text-gray-400 text-xs">
-                            via {gasPriceSource}
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-300 text-sm">
+                            Estimated Fee
+                          </span>
+                          <div className="text-right">
+                            <div className="text-green-400 font-semibold">
+                              {isLoadingFees
+                                ? "..."
+                                : `${parseFloat(gasFee).toFixed(6)} ETH`}
+                            </div>
+                            <div className="text-gray-400 text-xs">
+                              Testnet (No Real Value)
+                            </div>
                           </div>
                         </div>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-300 text-sm">
-                          Estimated Fee
-                        </span>
-                        <div className="text-right">
-                          <div className="text-green-400 font-semibold">
-                            {isLoadingFees
-                              ? "..."
-                              : `${parseFloat(gasFee).toFixed(6)} ETH`}
-                          </div>
-                          <div className="text-gray-400 text-xs">
-                            Testnet (No Real Value)
-                          </div>
+
+                      <div className="bg-[#2A2D35] rounded-lg p-4">
+                        <div className="text-center">
+                          <p className="text-gray-300 text-sm mb-1">Network</p>
+                          <p className="text-blue-400 font-medium">
+                            {networkInfo.name}
+                          </p>
+                          <p className="text-gray-400 text-xs">
+                            Chain ID: {networkInfo.chainId}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-[#2A2D35] rounded-lg p-4">
+                        <div className="text-center">
+                          <p className="text-gray-300 text-sm mb-1">Contract</p>
+                          <p className="text-gray-400 text-xs font-mono break-all">
+                            {CONTRACT_ADDRESS}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-[#1a1d23] border border-yellow-500/30 rounded-lg p-4">
+                        <div className="text-center">
+                          <p className="text-yellow-400 text-sm font-medium mb-1">
+                            💡 Need SepoliaETH?
+                          </p>
+                          <p className="text-gray-300 text-xs">
+                            Get free testnet ETH from{" "}
+                            <a
+                              href="https://sepoliafaucet.com"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:text-blue-300 underline"
+                            >
+                              Sepolia Faucet
+                            </a>
+                          </p>
                         </div>
                       </div>
                     </div>
-
-                    <div className="bg-[#2A2D35] rounded-lg p-4">
-                      <div className="text-center">
-                        <p className="text-gray-300 text-sm mb-1">Network</p>
-                        <p className="text-blue-400 font-medium">
-                          {networkInfo.name}
-                        </p>
-                        <p className="text-gray-400 text-xs">
-                          Chain ID: {networkInfo.chainId}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="bg-[#2A2D35] rounded-lg p-4">
-                      <div className="text-center">
-                        <p className="text-gray-300 text-sm mb-1">Contract</p>
-                        <p className="text-gray-400 text-xs font-mono break-all">
-                          {CONTRACT_ADDRESS}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="bg-[#1a1d23] border border-yellow-500/30 rounded-lg p-4">
-                      <div className="text-center">
-                        <p className="text-yellow-400 text-sm font-medium mb-1">
-                          💡 Need SepoliaETH?
-                        </p>
-                        <p className="text-gray-300 text-xs">
-                          Get free testnet ETH from{" "}
-                          <a
-                            href="https://sepoliafaucet.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-400 hover:text-blue-300 underline"
-                          >
-                            Sepolia Faucet
-                          </a>
-                        </p>
-                      </div>
-                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="bg-[#2A2D35] border-t border-[#3A3D45] p-4 flex justify-between items-center -mx-8 -mb-8 mt-8">
-            <Button
-              variant="outline"
-              onClick={onCancel}
-              className="bg-transparent border-gray-600 text-white hover:bg-[#3A3D45] hover:border-gray-500 transition-all duration-200"
-            >
-              Cancel
-            </Button>
-
-            <div className="flex items-center space-x-3">
-              <Button
-                onClick={handleRegister}
-                className="bg-blue-600 text-white hover:bg-blue-700 px-6 py-3 transition-all duration-200 shadow-lg hover:shadow-xl"
-                disabled={isRegistering}
-              >
-                <Wallet className="w-4 h-4 mr-2" />
-                {isRegistering ? "Processing..." : "Register on Chain"}
-              </Button>
+                </CardContent>
+              </Card>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+
+            <div className="bg-[#2A2D35] border-t border-[#3A3D45] p-4 flex justify-between items-center -mx-8 -mb-8 mt-8">
+              <Button
+                variant="outline"
+                onClick={onCancel}
+                className="bg-transparent border-gray-600 text-white hover:bg-[#3A3D45] hover:border-gray-500 transition-all duration-200"
+              >
+                Cancel
+              </Button>
+
+              <div className="flex items-center space-x-3">
+                <Button
+                  onClick={handleRegister}
+                  className="bg-blue-600 text-white hover:bg-blue-700 px-6 py-3 transition-all duration-200 shadow-lg hover:shadow-xl"
+                  disabled={isRegistering}
+                >
+                  <Wallet className="w-4 h-4 mr-2" />
+                  {isRegistering ? "Processing..." : "Register on Chain"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }

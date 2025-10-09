@@ -1,6 +1,7 @@
 "use client";
 
 import AuthenticatedLayout from "@/components/custom/layouts/authenticated-layout";
+import LoadingModal from "@/components/custom/loading-modal";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/config";
 import { ethers } from "ethers";
@@ -127,6 +128,13 @@ export default function CreateTagPage() {
   const [deepfakeWarning, setDeepfakeWarning] = useState<string | null>(null);
   const [preparedData, setPreparedData] = useState<PreparedData | null>(null);
   const [isHighDeepfakeDetected, setIsHighDeepfakeDetected] = useState(false);
+  const [loadingModal, setLoadingModal] = useState({
+    isVisible: false,
+    title: "",
+    subtitle: "",
+    steps: [] as { text: string; completed: boolean }[],
+    progress: 0,
+  });
 
   useEffect(() => {
     if (!isAuthLoading && !isAuthorized) {
@@ -153,34 +161,86 @@ export default function CreateTagPage() {
 
     setIsVerifying(true);
     setIsVerified(false);
-    const toastId = toast.loading("Verifying file on-chain...");
+
+    // Initialize loading modal
+    setLoadingModal({
+      isVisible: true,
+      title: "Verifying Uniqueness",
+      subtitle: "Checking blockchain for duplicate media...",
+      steps: [
+        { text: "Generating file hash", completed: false },
+        { text: "Connecting to blockchain", completed: false },
+        { text: "Checking for duplicates", completed: false },
+        { text: "Verification complete", completed: false },
+      ],
+      progress: 0,
+    });
 
     try {
+      // Step 1: Generate file hash
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 25,
+        steps: prev.steps.map((step, index) =>
+          index === 0 ? { ...step, completed: true } : step
+        ),
+      }));
+
       const contentHash = await generateSha256Hash(file);
       const formattedHash = "0x" + contentHash;
+
+      // Step 2: Connect to blockchain
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 50,
+        steps: prev.steps.map((step, index) =>
+          index === 1 ? { ...step, completed: true } : step
+        ),
+      }));
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       const contract = getEthersContract(provider);
 
+      // Step 3: Check for duplicates
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 75,
+        steps: prev.steps.map((step, index) =>
+          index === 2 ? { ...step, completed: true } : step
+        ),
+      }));
+
       try {
         await contract.getMedia(formattedHash);
-        toast.error(
-          "This file has already been registered on the blockchain.",
-          { id: toastId }
-        );
+        toast.error("This file has already been registered on the blockchain.");
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
       } catch (error: any) {
         if (error.code !== "CALL_EXCEPTION" && error.code !== "BAD_DATA") {
           throw error;
         }
-        toast.success("This media is unique. You can now detect deepfakes.", {
-          id: toastId,
-        });
+
+        // Step 4: Verification complete
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 100,
+          steps: prev.steps.map((step, index) =>
+            index === 3 ? { ...step, completed: true } : step
+          ),
+        }));
+
+        toast.success("This media is unique. You can now detect deepfakes.");
         setIsVerified(true);
+
+        // Close modal after brief delay
+        setTimeout(() => {
+          setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+        }, 1000);
       }
     } catch (err: any) {
       toast.error(
-        err.message || "An unexpected error occurred during verification.",
-        { id: toastId }
+        err.message || "An unexpected error occurred during verification."
       );
+      setLoadingModal((prev) => ({ ...prev, isVisible: false }));
     } finally {
       setIsVerifying(false);
     }
@@ -196,11 +256,43 @@ export default function CreateTagPage() {
     setDeepfakeWarning(null);
     setPreparedData(null);
     setIsHighDeepfakeDetected(false);
-    const toastId = toast.loading("Running AI analysis...");
+
+    // Initialize loading modal
+    setLoadingModal({
+      isVisible: true,
+      title: "Analyzing Media",
+      subtitle: "Detecting deepfake indicators...",
+      steps: [
+        { text: "Uploading media to secure servers", completed: false },
+        { text: "Running AI analysis algorithms", completed: false },
+        { text: "Verifying authenticity markers", completed: false },
+        { text: "Generating detailed report", completed: false },
+      ],
+      progress: 0,
+    });
 
     try {
+      // Step 1: Upload media
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 25,
+        steps: prev.steps.map((step, index) =>
+          index === 0 ? { ...step, completed: true } : step
+        ),
+      }));
+
       const formData = new FormData();
       formData.append("file_data", file);
+
+      // Step 2: Run AI analysis
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 50,
+        steps: prev.steps.map((step, index) =>
+          index === 1 ? { ...step, completed: true } : step
+        ),
+      }));
+
       const response = await fetch(`${API_BASE_URL}/api/detect`, {
         method: "POST",
         body: formData,
@@ -210,6 +302,15 @@ export default function CreateTagPage() {
         throw new Error(`Detection service failed: ${errorText}`);
       }
       const detectionResult: DetectionResult = await response.json();
+
+      // Step 3: Verify authenticity markers
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 75,
+        steps: prev.steps.map((step, index) =>
+          index === 2 ? { ...step, completed: true } : step
+        ),
+      }));
 
       if (typeof window.ethereum !== "undefined") {
         const provider = new ethers.BrowserProvider(window.ethereum);
@@ -241,9 +342,9 @@ export default function CreateTagPage() {
           `High deepfake probability detected (${detectionResult.deepfake_probability}%). Please try another media file.`
         );
         toast.error(
-          "High deepfake probability detected. Please try another media file.",
-          { id: toastId }
+          "High deepfake probability detected. Please try another media file."
         );
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
         return;
       } else if (detectionResult.deepfake_probability > 50) {
         setDeepfakeWarning(
@@ -271,14 +372,26 @@ export default function CreateTagPage() {
 
       localStorage.setItem("uploadedTagData", JSON.stringify(tagDataPayload));
       setPreparedData(tagDataPayload);
-      toast.success("Analysis complete. You can now proceed to register.", {
-        id: toastId,
-      });
+
+      // Step 4: Generate detailed report
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 100,
+        steps: prev.steps.map((step, index) =>
+          index === 3 ? { ...step, completed: true } : step
+        ),
+      }));
+
+      toast.success("Analysis complete. You can now proceed to register.");
+
+      // Close modal after brief delay
+      setTimeout(() => {
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+      }, 1000);
     } catch (err: any) {
       console.error("Detection error:", err);
-      toast.error(err.message || "Could not analyze the media.", {
-        id: toastId,
-      });
+      toast.error(err.message || "Could not analyze the media.");
+      setLoadingModal((prev) => ({ ...prev, isVisible: false }));
     } finally {
       setIsDetecting(false);
     }
@@ -304,20 +417,15 @@ export default function CreateTagPage() {
 
   return (
     <AuthenticatedLayout>
+      <LoadingModal
+        isVisible={loadingModal.isVisible}
+        title={loadingModal.title}
+        subtitle={loadingModal.subtitle}
+        steps={loadingModal.steps}
+        progress={loadingModal.progress}
+        showSecurityNote={true}
+      />
       <main className="min-h-screen bg-[#181A1D]">
-        {isProcessing && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
-            <div className="text-center space-y-4">
-              <div className="relative w-20 h-20 mx-auto">
-                <div className="absolute inset-0 w-20 h-20 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
-              </div>
-              <h3 className="text-xl font-bold text-white">
-                {isVerifying ? "Verifying..." : "Analyzing..."}
-              </h3>
-            </div>
-          </div>
-        )}
-
         <button
           onClick={handleCancel}
           className="fixed top-20 right-4 w-10 h-10 bg-[#3A3D45] rounded-lg flex items-center justify-center hover:bg-[#4A4D55] transition-colors z-40"
