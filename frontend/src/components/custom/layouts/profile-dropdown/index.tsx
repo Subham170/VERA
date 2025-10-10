@@ -3,7 +3,7 @@
 import { useAuth } from "@/context/AuthContext";
 import {
   BookOpen,
-  ChevronDown,
+  Check,
   Copy,
   Globe,
   HelpCircle,
@@ -15,7 +15,8 @@ import {
   User,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 
 interface ProfileDropdownProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export function ProfileDropdown({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
   const connectedAddress = user?.address;
+  const [isCopied, setIsCopied] = useState(false);
 
   const menuItems = [
     { icon: User, label: "Profile", href: "/profile" },
@@ -59,8 +61,26 @@ export function ProfileDropdown({
     if (!connectedAddress) return;
     try {
       await navigator.clipboard.writeText(connectedAddress);
+      setIsCopied(true);
+      toast.success("Wallet address copied to clipboard!", {
+        duration: 2000,
+        style: {
+          background: "#1F2937",
+          color: "#fff",
+          border: "1px solid #374151",
+        },
+      });
+      setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds
     } catch (err) {
       console.error("Failed to copy address:", err);
+      toast.error("Failed to copy address", {
+        duration: 2000,
+        style: {
+          background: "#1F2937",
+          color: "#fff",
+          border: "1px solid #374151",
+        },
+      });
     }
   };
 
@@ -138,10 +158,11 @@ export function ProfileDropdown({
               onClick={copyAddress}
               className="ml-auto p-1.5 hover:bg-[#3D3D40] rounded-md transition-all duration-200 hover:scale-110 group"
             >
-              <Copy className="h-3 w-3 text-gray-400 transition-colors duration-200 group-hover:text-blue-400" />
-            </button>
-            <button className="p-1.5 hover:bg-[#3D3D40] rounded-md transition-all duration-200 hover:scale-110 group">
-              <ChevronDown className="h-3 w-3 text-gray-400 transition-colors duration-200 group-hover:text-blue-400" />
+              {isCopied ? (
+                <Check className="h-3 w-3 text-green-400" />
+              ) : (
+                <Copy className="h-3 w-3 text-gray-400 transition-colors duration-200 group-hover:text-blue-400" />
+              )}
             </button>
           </div>
         ) : (
@@ -167,9 +188,6 @@ export function ProfileDropdown({
           <span className="text-sm text-white transition-colors duration-200 hover:text-blue-100">
             Ethereum $0.50 USD
           </span>
-          <button className="ml-auto p-1.5 hover:bg-[#3D3D40] rounded-md transition-all duration-200 hover:scale-110 group">
-            <ChevronDown className="h-3 w-3 text-gray-400 transition-colors duration-200 group-hover:text-blue-400" />
-          </button>
         </div>
       </div>
     </div>

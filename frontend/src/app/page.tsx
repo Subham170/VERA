@@ -168,7 +168,6 @@ export default function Home() {
             </div>
             <div className="hidden md:flex items-center gap-2 text-sm text-gray-400">
               <span>{userTags.length} items</span>
-              <div className="w-1 h-1 bg-gray-600 rounded-full"></div>
             </div>
           </div>
 
