@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingScreen from "@/components/custom/loading-screen";
 import { Button } from "@/components/ui/button";
 import {
   API_ENDPOINTS,
@@ -401,9 +402,10 @@ export default function TagPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-[#1A1A1A] text-white flex items-center justify-center">
-        <div className="text-xl">Loading Tag...</div>
-      </main>
+      <LoadingScreen
+        message="Loading Media Details"
+        subMessage="Verifying authenticity and fetching metadata from blockchain"
+      />
     );
   }
 
@@ -453,18 +455,42 @@ export default function TagPage() {
             </div>
             <div className="space-y-4 text-gray-300 leading-relaxed">
               <p>
-                {isMetadataLoading
-                  ? "No description provided."
-                  : metadata?.description}
+                {isMetadataLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+                    <span className="text-gray-400">
+                      Loading description...
+                    </span>
+                  </div>
+                ) : (
+                  metadata?.description || "No description provided."
+                )}
               </p>
               <div className="pt-4 border-t border-gray-700 space-y-4">
                 <h2 className="text-lg font-semibold text-white">
                   AI Analysis Report
                 </h2>
                 {isMetadataLoading ? (
-                  <p className="text-sm text-gray-400">
-                    Loading analysis report...
-                  </p>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+                      <span className="text-sm text-gray-400">
+                        Loading analysis report...
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="w-full bg-gray-700/50 rounded-full h-2">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-500 to-teal-500 rounded-full animate-pulse"
+                          style={{ width: "60%" }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>Fetching metadata...</span>
+                        <span>Verifying authenticity...</span>
+                      </div>
+                    </div>
+                  </div>
                 ) : metadata ? (
                   <>
                     <div>

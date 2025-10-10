@@ -17,6 +17,7 @@ type Media = {
 export function MediaCard({ item }: { item: Media }) {
   const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -31,9 +32,16 @@ export function MediaCard({ item }: { item: Media }) {
     }
   };
 
+  const handleViewDetails = () => {
+    setIsNavigating(true);
+    router.push(`/tag/${item.id}`);
+  };
+
   return (
     <div
-      className="group relative bg-[#2E3137]/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl overflow-hidden hover:scale-[1.02] transition-all duration-300 hover:border-blue-500/30 hover:shadow-xl hover:shadow-blue-500/10"
+      className={`group relative bg-[#2E3137]/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl overflow-hidden hover:scale-[1.02] transition-all duration-300 hover:border-blue-500/30 hover:shadow-xl hover:shadow-blue-500/10 ${
+        isNavigating ? "opacity-75 pointer-events-none" : ""
+      }`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -66,14 +74,22 @@ export function MediaCard({ item }: { item: Media }) {
         {/* Hover Overlay */}
         <div
           className={`absolute inset-0 bg-blue-500/20 backdrop-blur-sm flex items-center justify-center transition-all duration-300 ${
-            isHovered ? "opacity-100" : "opacity-0"
+            isHovered || isNavigating ? "opacity-100" : "opacity-0"
           }`}
         >
           <Button
-            onClick={() => router.push(`/tag/${item.id}`)}
-            className="bg-white/90 hover:bg-white text-blue-600 font-semibold px-6 py-2 rounded-xl shadow-lg hover:scale-105 transition-all duration-200"
+            onClick={handleViewDetails}
+            disabled={isNavigating}
+            className="bg-white/90 hover:bg-white text-blue-600 font-semibold px-6 py-2 rounded-xl shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            View Details
+            {isNavigating ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin"></div>
+                <span>Loading...</span>
+              </div>
+            ) : (
+              "View Details"
+            )}
           </Button>
         </div>
       </div>
