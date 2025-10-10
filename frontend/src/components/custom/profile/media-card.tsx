@@ -1,5 +1,4 @@
 "use client";
-import { Button } from "@/components/ui/button";
 import { Clock, Eye, FileText, Shield } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -32,6 +31,10 @@ export function MediaCard({ item }: { item: Media }) {
     }
   };
 
+  const handleCardClick = () => {
+    router.push(`/tag/${item.id}`);
+  };
+
   const handleViewDetails = () => {
     setIsNavigating(true);
     router.push(`/tag/${item.id}`);
@@ -39,11 +42,10 @@ export function MediaCard({ item }: { item: Media }) {
 
   return (
     <div
-      className={`group relative bg-[#2E3137]/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl overflow-hidden hover:scale-[1.02] transition-all duration-300 hover:border-blue-500/30 hover:shadow-xl hover:shadow-blue-500/10 ${
-        isNavigating ? "opacity-75 pointer-events-none" : ""
-      }`}
+      className="group relative bg-[#2E3137]/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl overflow-hidden hover:scale-[1.02] transition-all duration-300 hover:border-blue-500/30 hover:shadow-xl hover:shadow-blue-500/10 cursor-pointer"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={handleCardClick}
     >
       {/* Image Section */}
       <div className="relative aspect-square w-full overflow-hidden">
@@ -77,20 +79,9 @@ export function MediaCard({ item }: { item: Media }) {
             isHovered || isNavigating ? "opacity-100" : "opacity-0"
           }`}
         >
-          <Button
-            onClick={handleViewDetails}
-            disabled={isNavigating}
-            className="bg-white/90 hover:bg-white text-blue-600 font-semibold px-6 py-2 rounded-xl shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
-          >
-            {isNavigating ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin"></div>
-                <span>Loading...</span>
-              </div>
-            ) : (
-              "View Details"
-            )}
-          </Button>
+          <div className="bg-white/90 text-blue-600 font-semibold px-6 py-2 rounded-xl shadow-lg">
+            View Details
+          </div>
         </div>
       </div>
 
