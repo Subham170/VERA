@@ -404,7 +404,7 @@ export default function TagPage() {
     return (
       <LoadingScreen
         message="Loading Media Details"
-        subMessage="Verifying authenticity and fetching metadata from blockchain"
+        subMessage="Fetching content and verifying authenticity"
       />
     );
   }
@@ -458,9 +458,7 @@ export default function TagPage() {
                 {isMetadataLoading ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
-                    <span className="text-gray-400">
-                      Loading description...
-                    </span>
+                    <span className="text-gray-400">Loading...</span>
                   </div>
                 ) : (
                   metadata?.description || "No description provided."
@@ -471,25 +469,11 @@ export default function TagPage() {
                   AI Analysis Report
                 </h2>
                 {isMetadataLoading ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
-                      <span className="text-sm text-gray-400">
-                        Loading analysis report...
-                      </span>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="w-full bg-gray-700/50 rounded-full h-2">
-                        <div
-                          className="h-full bg-gradient-to-r from-blue-500 to-teal-500 rounded-full animate-pulse"
-                          style={{ width: "60%" }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>Fetching metadata...</span>
-                        <span>Verifying authenticity...</span>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+                    <span className="text-sm text-gray-400">
+                      Loading analysis...
+                    </span>
                   </div>
                 ) : metadata ? (
                   <>

@@ -31,6 +31,7 @@ export default function Home() {
   const [userTags, setUserTags] = useState<Tag[]>([]);
   const [tagsLoading, setTagsLoading] = useState(false);
   const [tagsError, setTagsError] = useState<string | null>(null);
+  const [authTimeout, setAuthTimeout] = useState(false);
 
   const handleGetStarted = () => {
     router.push("/login");
@@ -45,7 +46,23 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
- 
+  // Add timeout for authentication loading
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isLoading) {
+        console.log("Authentication loading timeout - redirecting to login");
+        setAuthTimeout(true);
+      }
+    }, 5000); // 5 second timeout (reduced from 10)
+
+    return () => clearTimeout(timer);
+  }, [isLoading]);
+
+  // Debug authentication state
+  useEffect(() => {
+    console.log("Auth state:", { isLoading, isAuthorized, authTimeout });
+  }, [isLoading, isAuthorized, authTimeout]);
+
   useEffect(() => {
     const fetchUserTags = async () => {
       setTagsLoading(true);
@@ -82,15 +99,38 @@ export default function Home() {
     if (isAuthorized) fetchUserTags();
   }, [isAuthorized, router]);
 
-  if (isLoading) {
+  if (isLoading && !authTimeout) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="min-h-screen bg-[#181A1D] flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-6">
+          <div className="w-16 h-16 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+          <div className="text-center space-y-2">
+            <h2 className="text-xl font-semibold text-white">Loading VERA</h2>
+            <p className="text-gray-400 text-sm">
+              Connecting to your wallet and verifying access
+            </p>
+          </div>
+          <div className="w-48 bg-gray-700/50 rounded-full h-1">
+            <div
+              className="h-full bg-blue-500 rounded-full animate-pulse"
+              style={{ width: "60%" }}
+            ></div>
+          </div>
+          <button
+            onClick={() => {
+              localStorage.removeItem("userSession");
+              window.location.reload();
+            }}
+            className="text-xs text-gray-500 hover:text-white underline"
+          >
+            Clear session & reload
+          </button>
+        </div>
       </div>
     );
   }
 
-  if (!isAuthorized) {
+  if (!isAuthorized || authTimeout) {
     return <WelcomeScreen onGetStarted={handleGetStarted} />;
   }
 
@@ -129,7 +169,6 @@ export default function Home() {
             <div className="hidden md:flex items-center gap-2 text-sm text-gray-400">
               <span>{userTags.length} items</span>
               <div className="w-1 h-1 bg-gray-600 rounded-full"></div>
-              
             </div>
           </div>
 
@@ -162,21 +201,12 @@ export default function Home() {
         <div className="space-y-8">
           {tagsLoading && (
             <div className="flex flex-col items-center justify-center py-16">
-              <div className="relative">
-                <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-                <div
-                  className="absolute inset-0 w-12 h-12 border-4 border-transparent border-t-blue-300 rounded-full animate-spin"
-                  style={{
-                    animationDirection: "reverse",
-                    animationDuration: "1.5s",
-                  }}
-                ></div>
-              </div>
+              <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
               <p className="text-white text-lg mt-4 font-medium">
                 Loading your media...
               </p>
               <p className="text-gray-400 text-sm mt-1">
-                Verifying content authenticity
+                Fetching verified content
               </p>
             </div>
           )}

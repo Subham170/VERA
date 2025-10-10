@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
 export interface User {
   address: string;
@@ -23,11 +29,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Check if we're in browser environment
+    if (typeof window === "undefined") {
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const savedUserJSON = localStorage.getItem('userSession');
+      const savedUserJSON = localStorage.getItem("userSession");
+      console.log(
+        "Checking localStorage for user session:",
+        savedUserJSON ? "Found" : "Not found"
+      );
       if (savedUserJSON) {
         const savedData = JSON.parse(savedUserJSON);
-        
+
         // Handle both old format (full API response) and new format (user object)
         let userData;
         if (savedData.data && savedData.data.user) {
@@ -42,22 +58,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           userData = savedData;
         } else {
           // Invalid data format
-          localStorage.removeItem('userSession');
+          localStorage.removeItem("userSession");
           setIsLoading(false);
           return;
         }
-        
+
         // Validate the user data
-        if (userData && userData.address && userData.username && userData.email) {
+        if (
+          userData &&
+          userData.address &&
+          userData.username &&
+          userData.email
+        ) {
           setUser(userData);
         } else {
           // If data is invalid, clear it
-          localStorage.removeItem('userSession');
+          localStorage.removeItem("userSession");
         }
       }
     } catch (error) {
       console.error("Failed to parse user session from localStorage", error);
-      localStorage.removeItem('userSession');
+      localStorage.removeItem("userSession");
     } finally {
       setIsLoading(false);
     }
@@ -65,12 +86,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = (userData: User) => {
     setUser(userData);
-    localStorage.setItem('userSession', JSON.stringify(userData));
+    localStorage.setItem("userSession", JSON.stringify(userData));
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('userSession');
+    localStorage.removeItem("userSession");
   };
 
   const value = {
@@ -87,8 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
-
