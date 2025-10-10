@@ -1,5 +1,4 @@
 "use client";
-import { Button } from "@/components/ui/button";
 import { Clock, Eye, FileText, Shield } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -31,11 +30,16 @@ export function MediaCard({ item }: { item: Media }) {
     }
   };
 
+  const handleCardClick = () => {
+    router.push(`/tag/${item.id}`);
+  };
+
   return (
     <div
-      className="group relative bg-[#2E3137]/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl overflow-hidden hover:scale-[1.02] transition-all duration-300 hover:border-blue-500/30 hover:shadow-xl hover:shadow-blue-500/10"
+      className="group relative bg-[#2E3137]/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl overflow-hidden hover:scale-[1.02] transition-all duration-300 hover:border-blue-500/30 hover:shadow-xl hover:shadow-blue-500/10 cursor-pointer"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={handleCardClick}
     >
       {/* Image Section */}
       <div className="relative aspect-square w-full overflow-hidden">
@@ -69,12 +73,9 @@ export function MediaCard({ item }: { item: Media }) {
             isHovered ? "opacity-100" : "opacity-0"
           }`}
         >
-          <Button
-            onClick={() => router.push(`/tag/${item.id}`)}
-            className="bg-white/90 hover:bg-white text-blue-600 font-semibold px-6 py-2 rounded-xl shadow-lg hover:scale-105 transition-all duration-200"
-          >
+          <div className="bg-white/90 text-blue-600 font-semibold px-6 py-2 rounded-xl shadow-lg">
             View Details
-          </Button>
+          </div>
         </div>
       </div>
 

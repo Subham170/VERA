@@ -120,6 +120,7 @@ export default function CreateTagPage() {
   const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
   const [description, setDescription] = useState("");
+  const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isVerifying, setIsVerifying] = useState(false);
@@ -145,12 +146,58 @@ export default function CreateTagPage() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
-      setFile(selectedFile);
-      setFileName(selectedFile.name);
-      setPreparedData(null);
-      setDeepfakeWarning(null);
-      setIsHighDeepfakeDetected(false);
-      setIsVerified(false);
+      processFile(selectedFile);
+    }
+  };
+
+  const processFile = (selectedFile: File) => {
+    // Validate file type
+    const validTypes = ['image/', 'video/', 'audio/'];
+    const isValidType = validTypes.some(type => selectedFile.type.startsWith(type));
+    
+    if (!isValidType) {
+      toast.error('Please select a valid image, video, or audio file.');
+      return;
+    }
+
+    setFile(selectedFile);
+    setFileName(selectedFile.name);
+    setPreparedData(null);
+    setDeepfakeWarning(null);
+    setIsHighDeepfakeDetected(false);
+    setIsVerified(false);
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    // Only set isDragOver to false if we're leaving the drop zone entirely
+    if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragOver(false);
+
+    const files = event.dataTransfer.files;
+    if (files && files.length > 0) {
+      const droppedFile = files[0];
+      processFile(droppedFile);
     }
   };
 
@@ -410,6 +457,7 @@ export default function CreateTagPage() {
   }
 
   if (!isAuthorized) {
+    router.push("/login");
     return null;
   }
 
@@ -467,7 +515,15 @@ export default function CreateTagPage() {
                 </label>
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors"
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200 ${
+                    isDragOver
+                      ? "border-blue-500 bg-blue-500/10 scale-[1.02]"
+                      : "border-gray-600 hover:border-blue-500"
+                  }`}
                 >
                   <input
                     type="file"
@@ -476,16 +532,26 @@ export default function CreateTagPage() {
                     className="hidden"
                     accept="image/*,video/*,audio/*"
                   />
-                  <div className="mx-auto w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center">
-                    <UploadCloud className="w-6 h-6 text-gray-400" />
+                  <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 ${
+                    isDragOver 
+                      ? "bg-blue-500/20 scale-110" 
+                      : "bg-gray-700"
+                  }`}>
+                    <UploadCloud className={`w-6 h-6 transition-colors duration-200 ${
+                      isDragOver ? "text-blue-400" : "text-gray-400"
+                    }`} />
                   </div>
                   {file ? (
                     <p className="mt-2 text-sm text-green-400">
                       {file.name} selected
                     </p>
+                  ) : isDragOver ? (
+                    <p className="mt-2 text-sm text-blue-400 font-medium">
+                      Drop your file here
+                    </p>
                   ) : (
                     <p className="mt-2 text-sm text-gray-400">
-                      Click to browse or drag & drop
+                      Click to browse or drag & drop your file here
                     </p>
                   )}
                 </div>
