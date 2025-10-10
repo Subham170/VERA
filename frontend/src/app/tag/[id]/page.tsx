@@ -28,7 +28,7 @@ const ABI = [
   "error AlreadyDeregistered(bytes32 contentHash)",
 ];
 
-const CONTRACT_ADDRESS = "0xc8DfF35746db2604b9feEEb48828d9F721D24530";
+const CONTRACT_ADDRESS = "0x8477f56742062936fb94CE466d6b96Ee5f244afe";
 
 function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   return new ethers.Contract(CONTRACT_ADDRESS, ABI, signerOrProvider);

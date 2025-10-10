@@ -12,6 +12,7 @@ dotenv.config();
 import connectDB from "./config/database.js";
 import userRoutes from "./user/routes.js";
 import tagRoutes from "./tag/routes.js";
+import watermarkRouters from "./watermark/routes.js";
 
 // Connect to MongoDB
 connectDB();
@@ -57,6 +58,7 @@ if (process.env.NODE_ENV === "development") {
 app.use("/api/users", userRoutes);
 app.use("/api/tags", tagRoutes);
 app.use("/api", detectionRoutes);
+app.use("/watermark",watermarkRouters);
 
 // Health check endpoint
 app.get("/health", (req, res) => {

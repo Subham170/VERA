@@ -19,7 +19,7 @@ async function sendFile() {
     { headers: { token: 'c927f89af2643ec3f225e1e04bd3a91e', 'Content-Type': 'application/json' } }
   );
 
-  console.log(resp.data);
+  // console.log(resp.data);
 }
 
 sendFile().catch(console.error);
