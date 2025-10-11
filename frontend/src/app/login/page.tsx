@@ -90,6 +90,7 @@ export default function LoginPage() {
         address: userData.data.user.address,
         username: userData.data.user.username,
         email: userData.data.user.email,
+        profile_img: userData.data.user.profile_img,
       };
 
       login(user);

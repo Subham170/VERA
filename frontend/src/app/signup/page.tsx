@@ -76,6 +76,7 @@ export default function SignUpPage() {
         address: newUser.data.user.address,
         username: newUser.data.user.username,
         email: newUser.data.user.email,
+        profile_img: newUser.data.user.profile_img,
       };
       
       login(user);

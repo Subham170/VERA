@@ -76,9 +76,19 @@ function SearchInput() {
 export default function SiteNavbar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthorized, isLoading } = useAuth();
+  const { isAuthorized, isLoading, user } = useAuth();
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Helper function to get user initials
+  const getUserInitials = (username: string) => {
+    return username
+      .split(' ')
+      .map(word => word.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   // Don't render navbar if user is not authenticated or still loading
   if (isLoading || !isAuthorized) {
@@ -191,9 +201,9 @@ export default function SiteNavbar() {
               className="group"
             >
               <Avatar className="size-10 ring-2 ring-gray-600/50 hover:ring-blue-400/50 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl hover:shadow-blue-500/25 hover:scale-105">
-                <AvatarImage src="/avatar-placeholder.png" alt="Your profile" />
+                <AvatarImage src={user?.profile_img} alt="Your profile" />
                 <AvatarFallback className="bg-gradient-to-br from-[#2E3137] to-[#3A3D45] text-white font-semibold group-hover:from-blue-500/20 group-hover:to-purple-500/20 transition-all duration-300">
-                  YO
+                  {user?.username ? getUserInitials(user.username) : "U"}
                 </AvatarFallback>
               </Avatar>
             </button>

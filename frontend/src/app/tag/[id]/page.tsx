@@ -12,7 +12,7 @@ import {
   NEXT_PUBLIC_WATERMARK_URL,
 } from "@/lib/config";
 import { ethers, type TransactionResponse } from "ethers";
-import { BadgeCheck, Download, Music, Share2, Trash2 } from "lucide-react";
+import { BadgeCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Music, Share2, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -127,6 +127,11 @@ interface Tag {
   createdAt: string;
   mediacid: string;
   metadatacid: string;
+  img_urls?: string[];
+  video_urls?: string[];
+  audio_urls?: string[];
+  file_count?: number;
+  is_bulk_upload?: boolean;
 }
 
 interface Metadata {
@@ -138,6 +143,9 @@ interface Metadata {
     natural: number;
   };
   contentAnalysis: string;
+  isBulkUpload?: boolean;
+  totalFiles?: number;
+  files?: Array<{ name: string; description: string; mediaType: string; detectionResult: any; cloudinaryUrl: string; }>;
 }
 
 export default function TagPage() {
@@ -162,6 +170,10 @@ export default function TagPage() {
     progress: 0,
     iconType: "default" as "default" | "download" | "delete" | "verify" | "ai",
   });
+  
+  // Carousel state for bulk uploads
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  const [isFilesDropdownOpen, setIsFilesDropdownOpen] = useState(false);
   const [confirmationModal, setConfirmationModal] = useState({
     isVisible: false,
     type: "delete" as "delete" | "download",
@@ -241,6 +253,11 @@ export default function TagPage() {
     };
 
     fetchMetadata();
+  }, [tag]);
+
+  // Reset carousel index when tag changes
+  useEffect(() => {
+    setCurrentMediaIndex(0);
   }, [tag]);
 
   const handleDownload = () => {
@@ -771,7 +788,7 @@ export default function TagPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#1A1A1A] text-white">
+    <main className="min-h-screen bg-[#1A1A1A] text-white overflow-x-hidden">
       <LoadingModal
         isVisible={loadingModal.isVisible}
         title={loadingModal.title}
@@ -791,52 +808,175 @@ export default function TagPage() {
         isLoading={isDeregistering}
         loadingText={isDeregistering ? "Deleting media..." : "Processing..."}
       />
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 w-full">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 xl:gap-8 items-start w-full">
           <div className="relative">
-            <div className="aspect-[1/1] w-full overflow-hidden rounded-[20px] bg-black flex items-center justify-center">
-              {tag.type === "video" ? (
-                <video
-                  src={tag.primary_media_url}
-                  className="w-full h-full object-cover"
-                  controls
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                >
-                  Your browser does not support the video tag.
-                </video>
-              ) : tag.type === "audio" ? (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 p-4">
-                  <Music className="w-24 h-24 text-gray-500 mb-4" />
-                  <audio
-                    src={tag.primary_media_url}
-                    controls
-                    className="w-full"
-                  >
-                    Your browser does not support the audio element.
-                  </audio>
+            {tag.is_bulk_upload ? (
+              // Bulk upload carousel
+              <div className="space-y-4">
+                <div className="aspect-[1/1] w-full max-w-lg mx-auto xl:mx-0 overflow-hidden rounded-[20px] bg-black flex items-center justify-center relative">
+                  {(() => {
+                    const allMediaUrls = [
+                      ...(tag.img_urls || []),
+                      ...(tag.video_urls || []),
+                      ...(tag.audio_urls || [])
+                    ];
+                    const currentUrl = allMediaUrls[currentMediaIndex];
+                    const isImage = tag.img_urls?.includes(currentUrl);
+                    const isVideo = tag.video_urls?.includes(currentUrl);
+                    
+                    if (isVideo) {
+                      return (
+                        <video
+                          src={currentUrl}
+                          className="w-full h-full object-cover"
+                          controls
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      );
+                    } else if (isImage) {
+                      return (
+                        <Image
+                          src={currentUrl}
+                          alt={`${tag.file_name} - File ${currentMediaIndex + 1}`}
+                          fill
+                          className="object-cover"
+                          priority
+                        />
+                      );
+                    } else {
+                      return (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 p-4">
+                          <Music className="w-24 h-24 text-gray-500 mb-4" />
+                          <audio
+                            src={currentUrl}
+                            controls
+                            className="w-full"
+                          >
+                            Your browser does not support the audio element.
+                          </audio>
+                        </div>
+                      );
+                    }
+                  })()}
+                  
+                  {/* Navigation arrows */}
+                  {(() => {
+                    const allMediaUrls = [
+                      ...(tag.img_urls || []),
+                      ...(tag.video_urls || []),
+                      ...(tag.audio_urls || [])
+                    ];
+                    if (allMediaUrls.length > 1) {
+                      return (
+                        <>
+                          <button
+                            onClick={() => setCurrentMediaIndex(Math.max(0, currentMediaIndex - 1))}
+                            disabled={currentMediaIndex === 0}
+                            className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                          >
+                            <ChevronLeft className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => setCurrentMediaIndex(Math.min(allMediaUrls.length - 1, currentMediaIndex + 1))}
+                            disabled={currentMediaIndex === allMediaUrls.length - 1}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                          >
+                            <ChevronRight className="w-5 h-5" />
+                          </button>
+                        </>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
-              ) : (
-                <Image
-                  src={tag.primary_media_url}
-                  alt={tag.file_name}
-                  fill
-                  className="object-cover"
-                  priority
-                />
-              )}
-            </div>
+                
+                {/* File counter and dots */}
+                {(() => {
+                  const allMediaUrls = [
+                    ...(tag.img_urls || []),
+                    ...(tag.video_urls || []),
+                    ...(tag.audio_urls || [])
+                  ];
+                  if (allMediaUrls.length > 1) {
+                    return (
+                      <div className="flex items-center justify-center space-x-4">
+                        <span className="text-sm text-gray-400">
+                          {currentMediaIndex + 1} of {allMediaUrls.length}
+                        </span>
+                        <div className="flex space-x-2">
+                          {allMediaUrls.map((_, index) => (
+                            <button
+                              key={index}
+                              onClick={() => setCurrentMediaIndex(index)}
+                              className={`w-2 h-2 rounded-full transition-colors duration-200 ${
+                                index === currentMediaIndex ? "bg-white" : "bg-white/50"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            ) : (
+              // Single media display
+              <div className="aspect-[1/1] w-full max-w-lg mx-auto xl:mx-0 overflow-hidden rounded-[20px] bg-black flex items-center justify-center">
+                {tag.type === "video" ? (
+                  <video
+                    src={tag.primary_media_url}
+                    className="w-full h-full object-cover"
+                    controls
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                ) : tag.type === "audio" ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 p-4">
+                    <Music className="w-24 h-24 text-gray-500 mb-4" />
+                    <audio
+                      src={tag.primary_media_url}
+                      controls
+                      className="w-full"
+                    >
+                      Your browser does not support the audio element.
+                    </audio>
+                  </div>
+                ) : (
+                  <Image
+                    src={tag.primary_media_url}
+                    alt={tag.file_name}
+                    fill
+                    className="object-cover"
+                    priority
+                  />
+                )}
+              </div>
+            )}
           </div>
-          <div className="space-y-6">
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-white">{tag.file_name}</h1>
+          <div className="space-y-4 sm:space-y-6 w-full min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
+              <h1 className="text-xl sm:text-2xl xl:text-3xl font-bold text-white break-all overflow-hidden">{tag.file_name}</h1>
+              {tag.is_bulk_upload && tag.file_count && (
+                <div className="bg-blue-500 text-white text-sm font-bold px-3 py-1 rounded-full">
+                  {tag.file_count} files
+                </div>
+              )}
               <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                 <BadgeCheck className="w-4 h-4 text-white" />
               </div>
             </div>
-            <div className="space-y-4 text-gray-300 leading-relaxed">
+            <div className="space-y-4 text-gray-300 leading-relaxed overflow-hidden min-w-0">
               <div>
                 {isMetadataLoading ? (
                   <div className="flex items-center gap-2">
@@ -847,7 +987,7 @@ export default function TagPage() {
                   metadata?.description || "No description provided."
                 )}
               </div>
-              <div className="pt-4 border-t border-gray-700 space-y-4">
+              <div className="pt-4 border-t border-gray-700 space-y-4 min-w-0">
                 <h2 className="text-lg font-semibold text-white">
                   AI Analysis Report
                 </h2>
@@ -860,49 +1000,101 @@ export default function TagPage() {
                   </div>
                 ) : metadata ? (
                   <>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 mb-2">
-                        PROBABILITY
-                      </p>
-                      <div className="w-full bg-gray-700 rounded-full h-2.5 flex overflow-hidden">
-                        <div
-                          className="bg-green-500 h-2.5"
-                          style={{
-                            width: `${metadata.probabilities.natural}%`,
-                          }}
-                        ></div>
-                        <div
-                          className="bg-yellow-500 h-2.5"
-                          style={{
-                            width: `${metadata.probabilities.deepfake}%`,
-                          }}
-                        ></div>
-                      </div>
-                      <div className="flex justify-between text-xs mt-1">
-                        <span className="text-green-400">
-                          Natural: {metadata.probabilities.natural}%
-                        </span>
-                        <span className="text-yellow-400">
-                          Deepfake: {metadata.probabilities.deepfake}%
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 mb-1">
-                        CONTENT ANALYSIS
-                      </p>
-                      <p className="text-sm text-gray-300">
-                        {metadata.contentAnalysis}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 mb-1">
-                        REGISTERED BY
-                      </p>
-                      <p className="font-mono text-sm text-white">
-                        {metadata.signerAddress}
-                      </p>
-                    </div>
+                    {metadata.isBulkUpload ? (
+                      // Bulk upload analysis - show current file analysis
+                      <>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400 mb-2">
+                            PROBABILITY (File {currentMediaIndex + 1})
+                          </p>
+                          <div className="w-full bg-gray-700 rounded-full h-2.5 flex overflow-hidden">
+                            <div
+                              className="bg-green-500 h-2.5"
+                              style={{
+                                width: `${metadata.files?.[currentMediaIndex]?.detectionResult?.natural_probability || 0}%`,
+                              }}
+                            ></div>
+                            <div
+                              className="bg-yellow-500 h-2.5"
+                              style={{
+                                width: `${metadata.files?.[currentMediaIndex]?.detectionResult?.deepfake_probability || 0}%`,
+                              }}
+                            ></div>
+                          </div>
+                          <div className="flex justify-between text-xs mt-1">
+                            <span className="text-green-400">
+                              Natural: {metadata.files?.[currentMediaIndex]?.detectionResult?.natural_probability || 0}%
+                            </span>
+                            <span className="text-yellow-400">
+                              Deepfake: {metadata.files?.[currentMediaIndex]?.detectionResult?.deepfake_probability || 0}%
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400 mb-1">
+                            CONTENT ANALYSIS
+                          </p>
+                          <p className="text-sm text-gray-300 break-words">
+                            {metadata.files?.[currentMediaIndex]?.detectionResult?.reasoning?.overall || "No analysis available"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400 mb-1">
+                            FILE DETAILS
+                          </p>
+                          <p className="font-mono text-sm text-white break-all overflow-hidden">
+                            {metadata.files?.[currentMediaIndex]?.name || "Unknown"} ({metadata.files?.[currentMediaIndex]?.mediaType || "Unknown"})
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      // Single upload analysis
+                      <>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400 mb-2">
+                            PROBABILITY
+                          </p>
+                          <div className="w-full bg-gray-700 rounded-full h-2.5 flex overflow-hidden">
+                            <div
+                              className="bg-green-500 h-2.5"
+                              style={{
+                                width: `${metadata.probabilities?.natural || 0}%`,
+                              }}
+                            ></div>
+                            <div
+                              className="bg-yellow-500 h-2.5"
+                              style={{
+                                width: `${metadata.probabilities?.deepfake || 0}%`,
+                              }}
+                            ></div>
+                          </div>
+                          <div className="flex justify-between text-xs mt-1">
+                            <span className="text-green-400">
+                              Natural: {metadata.probabilities?.natural || 0}%
+                            </span>
+                            <span className="text-yellow-400">
+                              Deepfake: {metadata.probabilities?.deepfake || 0}%
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400 mb-1">
+                            CONTENT ANALYSIS
+                          </p>
+                          <p className="text-sm text-gray-300 break-words">
+                            {metadata.contentAnalysis}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400 mb-1">
+                            REGISTERED BY
+                          </p>
+                          <p className="font-mono text-sm text-white break-all overflow-hidden">
+                            {metadata.signerAddress}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </>
                 ) : (
                   <p className="text-sm text-red-400">
@@ -911,7 +1103,89 @@ export default function TagPage() {
                 )}
               </div>
             </div>
-            <div className="flex gap-3">
+            
+            {/* Files in Collection - Dropdown for bulk uploads */}
+            {tag.is_bulk_upload && (() => {
+              const allMediaUrls = [
+                ...(tag.img_urls || []),
+                ...(tag.video_urls || []),
+                ...(tag.audio_urls || [])
+              ];
+              
+              if (allMediaUrls.length > 1) {
+                return (
+                  <div className="space-y-2 min-w-0">
+                    <button
+                      onClick={() => setIsFilesDropdownOpen(!isFilesDropdownOpen)}
+                      className="flex items-center justify-between w-full p-3 bg-[#2D2D30] border border-gray-600 rounded-lg hover:bg-[#3D3D40] transition-colors duration-200"
+                    >
+                      <span className="text-sm font-medium text-white">
+                        Files in Collection ({allMediaUrls.length})
+                      </span>
+                      {isFilesDropdownOpen ? (
+                        <ChevronUp className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                      )}
+                    </button>
+                    
+                    {isFilesDropdownOpen && (
+                      <div className="space-y-2 max-h-60 overflow-y-auto w-full">
+                        {allMediaUrls.map((url, index) => {
+                          const isImage = tag.img_urls?.includes(url);
+                          const isVideo = tag.video_urls?.includes(url);
+                          const isAudio = tag.audio_urls?.includes(url);
+                          
+                          return (
+                            <div
+                              key={index}
+                              onClick={() => setCurrentMediaIndex(index)}
+                              className={`flex items-center space-x-3 p-2 rounded-lg cursor-pointer transition-colors duration-200 ${
+                                currentMediaIndex === index
+                                  ? "bg-blue-500/20 border border-blue-500/50"
+                                  : "bg-[#2D2D30] hover:bg-[#3D3D40]"
+                              }`}
+                            >
+                              <div className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center flex-shrink-0">
+                                {isImage ? (
+                                  <Image
+                                    src={url}
+                                    alt={`File ${index + 1}`}
+                                    width={32}
+                                    height={32}
+                                    className="w-full h-full object-cover rounded"
+                                  />
+                                ) : isVideo ? (
+                                  <div className="w-6 h-6 bg-red-500 rounded flex items-center justify-center">
+                                    <span className="text-white text-xs">▶</span>
+                                  </div>
+                                ) : (
+                                  <Music className="w-4 h-4 text-gray-400" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-white truncate">
+                                  File {index + 1}
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  {isImage ? "Image" : isVideo ? "Video" : "Audio"}
+                                </p>
+                              </div>
+                              {currentMediaIndex === index && (
+                                <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })()}
+            
+            <div className="flex flex-wrap gap-3 min-w-0">
               <Button
                 onClick={handleDownload}
                 variant="outline"

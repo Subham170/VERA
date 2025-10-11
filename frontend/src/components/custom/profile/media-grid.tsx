@@ -1,14 +1,21 @@
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { MediaCard } from "./media-card";
+import BulkMediaCard from "./bulk-media-card";
 
 interface TagItem {
   _id: string;
   file_name: string;
+  description?: string;
   type: "img" | "video" | "audio";
   img_urls?: string[];
   video_urls?: string[];
   audio_urls?: string[];
+  file_count?: number;
+  is_bulk_upload?: boolean;
+  createdAt?: string;
+  view_count?: number;
+  like_count?: number;
 }
 
 interface MediaGridProps {
@@ -54,9 +61,18 @@ export function MediaGrid({ mediaItems = [] }: MediaGridProps) {
       handle: `@${tag.type}`,
       thumbnail,
       type: tag.type,
-      img_urls: tag.img_urls,
-      video_urls: tag.video_urls,
-      audio_urls: tag.audio_urls,
+      img_urls: tag.img_urls || [],
+      video_urls: tag.video_urls || [],
+      audio_urls: tag.audio_urls || [],
+      file_count: tag.file_count || 1,
+      is_bulk_upload: tag.is_bulk_upload || false,
+      // Add properties needed for BulkMediaCard
+      _id: tag._id,
+      file_name: tag.file_name,
+      description: tag.description || "",
+      createdAt: tag.createdAt || new Date().toISOString(),
+      view_count: tag.view_count || 0,
+      like_count: tag.like_count || 0,
     };
   });
 
@@ -71,7 +87,11 @@ export function MediaGrid({ mediaItems = [] }: MediaGridProps) {
             animationFillMode: "both",
           }}
         >
-          <MediaCard item={item} />
+          {item.is_bulk_upload ? (
+            <BulkMediaCard media={item as any} />
+          ) : (
+            <MediaCard item={item} />
+          )}
         </div>
       ))}
     </div>

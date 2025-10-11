@@ -12,6 +12,7 @@ export interface User {
   address: string;
   username: string;
   email: string;
+  profile_img?: string;
 }
 
 interface AuthContextType {
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             address: savedData.data.user.address,
             username: savedData.data.user.username,
             email: savedData.data.user.email,
+            profile_img: savedData.data.user.profile_img,
           };
         } else if (savedData.address) {
           // New format: direct user object
