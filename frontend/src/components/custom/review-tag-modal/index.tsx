@@ -66,27 +66,26 @@ async function uploadFileToPinata(file: File): Promise<string> {
   return result.IpfsHash;
 }
 
-function generateSha256Hash(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const data = reader.result as ArrayBuffer;
-        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
-        resolve(hashHex);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = (err) => reject(err);
-    reader.readAsArrayBuffer(file);
-  });
-}
+async function generateSha256Hash(file: File): Promise<string> {
+  try {
+    // Read the file as ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
 
+    // Generate SHA-256 hash from the file content
+    const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    // Convert to keccak256 hash for smart contract compatibility
+    const keccakHash = ethers.keccak256("0x" + hashHex);
+    return keccakHash;
+  } catch (error) {
+    console.error("Error generating content hash:", error);
+    throw new Error("Failed to generate content hash from file object");
+  }
+}
 function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   return new ethers.Contract(CONTRACT_ADDRESS as string, ABI, signerOrProvider);
 }
@@ -299,7 +298,7 @@ export default function ReviewTagModal({
     try {
       const tagData = JSON.parse(tagDataRaw);
       const mediaFile = base64ToFile(tagData.filePreview, tagData.name);
-      console.log(mediaFile);
+
       const metadataFile = new File([metadataRaw], "metadata.json", {
         type: "application/json",
       });
@@ -367,7 +366,15 @@ export default function ReviewTagModal({
       }));
 
       const contract = getEthersContract(signer);
-      const formattedHash = "0x" + contentHash;
+
+      // contentHash is already a keccak256 hash with 0x prefix from generateSha256Hash
+      // Validate the hash format before using it
+      if (!contentHash.startsWith("0x") || contentHash.length !== 66) {
+        throw new Error(`Invalid content hash format: ${contentHash}`);
+      }
+
+      const formattedHash = contentHash;
+      console.log("Using content hash for registration:", formattedHash);
 
       const tx: TransactionResponse = await contract.registerMedia(
         mediaCid,

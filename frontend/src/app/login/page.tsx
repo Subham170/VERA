@@ -64,8 +64,6 @@ export default function LoginPage() {
         `${API_ENDPOINTS.USERS}/${connectedAddress}`
       );
 
-      console.log("qweryiop",response);
-
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error("User not found. Please sign up first.");
@@ -74,12 +72,18 @@ export default function LoginPage() {
       }
 
       const userData = await response.json();
-      if (getAddress(userData.data.user.address) !== connectedAddress) {
+      console.log("qweryiop", userData.data.user.address);
+      console.log("qweryiop", connectedAddress);
+      if (getAddress(userData.data.user.address) != connectedAddress) {
         throw new Error("Address does not match the connected wallet address.");
       }
 
-      if(userData.data.user.username === username){
-        throw new Error("Username does not match the connected wallet address.");
+      console.log("qweryiop", userData.data.user.username);
+      console.log("qweryiop", username);
+      if (userData.data.user.username !== username) {
+        throw new Error(
+          "Username does not match the connected wallet address."
+        );
       }
 
       const user = {

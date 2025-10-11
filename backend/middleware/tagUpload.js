@@ -176,19 +176,19 @@ export const applyCloudinaryWatermark = (req, res) => {
   };
 
   try {
-    const { videoUrl, watermarkUrl } = req.body;
+    const { mediaUrl, watermarkUrl, mediaType = "video" } = req.body;
 
-    if (!videoUrl || !watermarkUrl) {
+    if (!mediaUrl || !watermarkUrl) {
       return res.status(400).json({
         status: "error",
-        message: "Both videoUrl and watermarkUrl are required.",
+        message: "Both mediaUrl and watermarkUrl are required.",
       });
     }
 
-    const videoPublicId = getPublicIdFromUrl(videoUrl);
+    const mediaPublicId = getPublicIdFromUrl(mediaUrl);
     const watermarkPublicId = getPublicIdFromUrl(watermarkUrl);
 
-    if (!videoPublicId || !watermarkPublicId) {
+    if (!mediaPublicId || !watermarkPublicId) {
       return res.status(400).json({
         status: "error",
         message: "Could not parse valid public IDs from the provided URLs.",
@@ -197,20 +197,44 @@ export const applyCloudinaryWatermark = (req, res) => {
 
     const safeWatermarkId = watermarkPublicId.replace(/\//g, ":");
 
-    const watermarkedUrl = cloudinary.url(videoPublicId, {
-      cloud_name: "dmxn5vut7",
-      resource_type: "video",
-      transformation: [
-        {
-          overlay: safeWatermarkId,
-          gravity: "south_east",
-          x: 20,
-          y: 20,
-          width: 150,
-          opacity: 80,
-        },
-      ],
-    });
+    // Determine resource type based on media type
+    const resourceType = mediaType === "img" ? "image" : "video";
+
+    let watermarkedUrl;
+
+    if (mediaType === "img") {
+      // For image files, apply watermark overlay
+      watermarkedUrl = cloudinary.url(mediaPublicId, {
+        cloud_name: "dmxn5vut7",
+        resource_type: "image",
+        transformation: [
+          {
+            overlay: safeWatermarkId,
+            gravity: "north_west",
+            x: 10,
+            y: 10,
+            width: 80,
+            opacity: 80,
+          },
+        ],
+      });
+    } else {
+      // For video files, apply watermark overlay
+      watermarkedUrl = cloudinary.url(mediaPublicId, {
+        cloud_name: "dmxn5vut7",
+        resource_type: "video",
+        transformation: [
+          {
+            overlay: safeWatermarkId,
+            gravity: "north_west",
+            x: 10,
+            y: 10,
+            width: 80,
+            opacity: 80,
+          },
+        ],
+      });
+    }
 
     return res.status(200).json({
       status: "success",
