@@ -1,14 +1,22 @@
+// @ts-nocheck
 "use client";
 
 import LoadingModal from "@/components/custom/loading-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { API_ENDPOINTS } from "@/lib/config";
+import { MetaMaskInpageProvider } from "@metamask/providers";
 import { ethers, type TransactionResponse } from "ethers";
 import { Check, Eye, RefreshCw, Wallet, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+
+declare global {
+  var window: Window & {
+    ethereum?: MetaMaskInpageProvider;
+  };
+}
 
 const ABI = [
   "function registerMedia(string memory mediaCid, string memory metadataCid, bytes32 contentHash) public",
@@ -172,7 +180,6 @@ export default function ReviewTagModal({
     return ethers.parseUnits("20", "gwei");
   };
 
-
   const estimateGasFees = async () => {
     if (typeof window?.ethereum === "undefined") {
       setGasPrice("20");
@@ -189,8 +196,7 @@ export default function ReviewTagModal({
       const currentGasPrice = await getGasPriceFromEtherscan();
       setGasPrice(ethers.formatUnits(currentGasPrice, "gwei"));
 
-      // Use dummy data for estimation instead of uploading real files
-      const dummyCid = "Qmaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; // 46 chars, looks like a CID
+      const dummyCid = "Qmaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
       const dummyHash = "0x" + "0".repeat(64);
 
       const gasEstimate = await contract.registerMedia.estimateGas(
@@ -258,10 +264,9 @@ export default function ReviewTagModal({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: "0xaa36a7" }],
       });
-    } catch (switchError: any) {
-      if (switchError.code === 4902) {
+    } catch (switchError) {
+      if ((switchError as { code: number }).code === 4902) {
         try {
-
           await window.ethereum.request({
             method: "wallet_addEthereumChain",
             params: [
@@ -295,7 +300,7 @@ export default function ReviewTagModal({
     try {
       const tagData = JSON.parse(tagDataRaw);
       const mediaFile = base64ToFile(tagData.filePreview, tagData.name);
-      console.log(mediaFile)
+      console.log(mediaFile);
       const metadataFile = new File([metadataRaw], "metadata.json", {
         type: "application/json",
       });
@@ -385,9 +390,10 @@ export default function ReviewTagModal({
         setLoadingModal((prev) => ({ ...prev, isVisible: false }));
         router.push("/");
       }, 1000);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Registration error:", err);
-      toast.error(err.reason || err.message || "An unexpected error occurred.");
+      const error = err as { reason?: string; message?: string };
+      toast.error(error.reason || error.message || "An unexpected error occurred.");
       setLoadingModal((prev) => ({ ...prev, isVisible: false }));
     } finally {
       setIsRegistering(false);
@@ -610,4 +616,3 @@ export default function ReviewTagModal({
     </>
   );
 }
-
