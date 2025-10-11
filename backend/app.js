@@ -40,7 +40,8 @@ app.use(
     credentials: true,
   })
 );
-// Body parsing middleware
+// Body parsing middleware - only for non-file routes
+// Note: File upload routes use multer which handles body parsing
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
@@ -52,10 +53,11 @@ if (process.env.NODE_ENV === "development") {
 // Environment validation is now handled in the detection module
 
 // API routes
-app.use("/api/users", userRoutes);
-app.use("/api/tags", tagRoutes);
-app.use("/api", detectionRoutes);
-app.use("/watermark", watermarkRouters);
+// Add JSON parsing middleware for routes that need it
+app.use("/api/users", express.json({ limit: "10mb" }), userRoutes);
+app.use("/api/tags", tagRoutes); // Tag routes handle their own parsing (multer for uploads, JSON for others)
+app.use("/api", express.json({ limit: "10mb" }), detectionRoutes);
+app.use("/watermark", express.json({ limit: "10mb" }), watermarkRouters);
 
 // Health check endpoint
 app.get("/health", (req, res) => {

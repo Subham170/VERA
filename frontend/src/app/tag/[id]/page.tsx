@@ -30,8 +30,8 @@ const ABI = [
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
 
-const WATERMARK_URL = "https://res.cloudinary.com/dmxn5vut7/image/upload/v1760146871/vera/detection/images/pm1gjtyunblk5kyfxltr.png";
-
+const WATERMARK_URL =
+  "https://res.cloudinary.com/dmxn5vut7/image/upload/v1760146871/vera/detection/images/pm1gjtyunblk5kyfxltr.png";
 
 function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   return new ethers.Contract(CONTRACT_ADDRESS as string, ABI, signerOrProvider);
@@ -230,21 +230,21 @@ export default function TagPage() {
         window.URL.revokeObjectURL(url);
 
         toast.success("Download started!", { id: toastId });
-
       } else if (tag.type === "video") {
         toast.loading("Applying watermark...", { id: toastId });
 
         const payload = {
-            videoUrl: tag.primary_media_url,
-            watermarkUrl: WATERMARK_URL,
+          videoUrl: tag.primary_media_url,
+          watermarkUrl: WATERMARK_URL,
         };
+        console.log(payload);
 
         const watermarkResponse = await fetch(
-          "http://localhost:5000/api/tags/watermark",
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tags/watermark`,
           {
             method: "POST",
             headers: {
-                'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
             body: JSON.stringify(payload),
           }
@@ -259,18 +259,17 @@ export default function TagPage() {
         const watermarkedUrl = result.data.watermarkedUrl;
 
         if (!watermarkedUrl) {
-            throw new Error("Backend did not return a watermarked URL.");
+          throw new Error("Backend did not return a watermarked URL.");
         }
-        
+
         const a = document.createElement("a");
         a.href = watermarkedUrl;
         a.download = `watermarked_${tag.file_name}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        
-        toast.success("Watermarked video download started!", { id: toastId });
 
+        toast.success("Watermarked video download started!", { id: toastId });
       } else {
         const response = await fetch(tag.primary_media_url);
         const blob = await response.blob();

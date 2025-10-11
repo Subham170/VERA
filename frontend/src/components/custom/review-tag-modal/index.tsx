@@ -26,7 +26,7 @@ const ABI = [
   "error MediaNotFound(bytes32 contentHash)",
 ];
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
 
 function base64ToFile(base64: string, fileName: string): File {
   const arr = base64.split(",");
@@ -45,7 +45,7 @@ async function uploadFileToPinata(file: File): Promise<string> {
   const data = new FormData();
   data.append("file", file);
 
-  const PINATA_JWT = process.env.NEXT_PUBLIC_PINATA_JWT
+  const PINATA_JWT = process.env.NEXT_PUBLIC_PINATA_JWT;
 
   const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
     method: "POST",
@@ -392,7 +392,9 @@ export default function ReviewTagModal({
     } catch (err) {
       console.error("Registration error:", err);
       const error = err as { reason?: string; message?: string };
-      toast.error(error.reason || error.message || "An unexpected error occurred.");
+      toast.error(
+        error.reason || error.message || "An unexpected error occurred."
+      );
       setLoadingModal((prev) => ({ ...prev, isVisible: false }));
     } finally {
       setIsRegistering(false);

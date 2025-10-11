@@ -23,6 +23,7 @@ detection/
 ## 🚀 Features
 
 ### Core Functionality
+
 - **File Upload Processing**: Handles multipart form data uploads
 - **Cloudinary Integration**: Automatic file upload to Cloudinary CDN
 - **AI Detection**: OpenAI-powered deepfake detection
@@ -30,6 +31,7 @@ detection/
 - **Comprehensive Error Handling**: Robust error management and cleanup
 
 ### Supported Media Types
+
 - **Images**: JPG, JPEG, PNG, GIF, WebP, BMP, SVG
 - **Videos**: MP4, MOV, AVI, MKV, WebM, FLV
 - **Audio**: MP3, WAV, OGG, AAC, FLAC, M4A
@@ -38,12 +40,15 @@ detection/
 ### API Endpoints
 
 #### POST `/api/detect`
+
 Main detection endpoint that accepts:
+
 - **File Upload**: `multipart/form-data` with `file_data` field
 - **Image URL**: JSON body with `image_url` field
 - **Text Input**: JSON body with `text` field
 
 **Response Format:**
+
 ```json
 {
   "media_type": "image",
@@ -64,59 +69,65 @@ Main detection endpoint that accepts:
 ```
 
 #### GET `/api/detect/health`
+
 Health check endpoint for the detection service.
 
 #### GET `/api/detect/supported-types`
+
 Returns supported file types and upload limits.
 
 ## 🛠️ Usage
 
 ### Basic File Upload
+
 ```javascript
 const formData = new FormData();
-formData.append('file_data', fileInput.files[0]);
+formData.append("file_data", fileInput.files[0]);
 
-fetch('/api/detect', {
-  method: 'POST',
-  body: formData
+fetch("/api/detect", {
+  method: "POST",
+  body: formData,
 })
-.then(response => response.json())
-.then(data => console.log(data));
+  .then((response) => response.json())
+  .then((data) => console.log(data));
 ```
 
 ### Image URL Detection
+
 ```javascript
-fetch('/api/detect', {
-  method: 'POST',
+fetch("/api/detect", {
+  method: "POST",
   headers: {
-    'Content-Type': 'application/json'
+    "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    image_url: 'https://example.com/image.jpg'
-  })
+    image_url: "https://example.com/image.jpg",
+  }),
 })
-.then(response => response.json())
-.then(data => console.log(data));
+  .then((response) => response.json())
+  .then((data) => console.log(data));
 ```
 
 ### Text Analysis
+
 ```javascript
-fetch('/api/detect', {
-  method: 'POST',
+fetch("/api/detect", {
+  method: "POST",
   headers: {
-    'Content-Type': 'application/json'
+    "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    text: 'This is a text input for analysis'
-  })
+    text: "This is a text input for analysis",
+  }),
 })
-.then(response => response.json())
-.then(data => console.log(data));
+  .then((response) => response.json())
+  .then((data) => console.log(data));
 ```
 
 ## 🔧 Configuration
 
 ### Environment Variables
+
 ```env
 OPENAI_API_KEY=your_openai_api_key
 CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
@@ -125,6 +136,7 @@ CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 ```
 
 ### File Upload Limits
+
 - **Maximum file size**: 100MB
 - **Maximum files per request**: 5
 - **Supported formats**: See supported media types above
@@ -134,17 +146,20 @@ CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 The module provides comprehensive error handling:
 
 ### File Upload Errors
+
 - `file_too_large`: File exceeds 100MB limit
 - `too_many_files`: More than 5 files uploaded
 - `unsupported_file_type`: File type not supported
 - `unexpected_file_field`: Wrong field name used
 
 ### Processing Errors
+
 - `invalid_image_url`: Invalid or unsupported image URL
 - `no_input`: No valid input provided
 - `internal_error`: Server-side processing error
 
 ### Cloudinary Errors
+
 - Automatic cleanup of failed uploads
 - Detailed error logging
 - Graceful degradation
@@ -161,19 +176,22 @@ The module provides comprehensive error handling:
 ## 🧪 Testing
 
 ### Health Check
+
 ```bash
-curl http://localhost:5000/api/detect/health
+curl ${API_BASE_URL:-http://localhost:5000}/api/detect/health
 ```
 
 ### File Upload Test
+
 ```bash
-curl -X POST http://localhost:5000/api/detect \
+curl -X POST ${API_BASE_URL:-http://localhost:5000}/api/detect \
   -F "file_data=@test-image.jpg"
 ```
 
 ### Supported Types Check
+
 ```bash
-curl http://localhost:5000/api/detect/supported-types
+curl ${API_BASE_URL:-http://localhost:5000}/api/detect/supported-types
 ```
 
 ## 🔒 Security Features
@@ -196,14 +214,17 @@ curl http://localhost:5000/api/detect/supported-types
 ### Common Issues
 
 1. **OpenAI API Key Missing**
+
    - Ensure `OPENAI_API_KEY` is set in environment variables
    - Check the health endpoint for configuration status
 
 2. **Cloudinary Configuration Issues**
+
    - Verify all Cloudinary environment variables are set
    - Check Cloudinary dashboard for upload limits
 
 3. **File Upload Failures**
+
    - Verify file type is supported
    - Check file size is under 100MB limit
    - Ensure proper field name (`file_data`) is used
@@ -214,11 +235,13 @@ curl http://localhost:5000/api/detect/supported-types
    - Review error logs for detailed information
 
 ### Debug Mode
+
 Enable detailed logging by setting `NODE_ENV=development` in your environment variables.
 
 ## 📈 Monitoring
 
 The module provides several monitoring endpoints:
+
 - Health check for service status
 - Supported types for client validation
 - Detailed error responses for debugging
@@ -227,12 +250,14 @@ The module provides several monitoring endpoints:
 ## 🔄 Maintenance
 
 ### Regular Tasks
+
 - Monitor Cloudinary storage usage
 - Review OpenAI API usage and costs
 - Clean up old temporary files
 - Update supported file types as needed
 
 ### Updates
+
 - Keep OpenAI SDK updated
 - Monitor Cloudinary API changes
 - Update file type support as needed

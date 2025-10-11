@@ -18,6 +18,7 @@ export const createTag = async (req, res) => {
       file_size,
     } = req.body;
 
+    console.log(video_urls);
     // Validate required fields
     if (
       !file_name ||
@@ -33,7 +34,7 @@ export const createTag = async (req, res) => {
       });
     }
 
-    console.log(type)
+    console.log(type);
     if (!["img", "video", "audio"].includes(type)) {
       return res.status(400).json({
         status: "error",
@@ -587,6 +588,3 @@ export const getPopularTags = async (req, res) => {
     });
   }
 };
-
-
-

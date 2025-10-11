@@ -1,7 +1,6 @@
+import { v2 as cloudinary } from "cloudinary";
 import multer from "multer";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
-import { v2 as cloudinary } from "cloudinary";
-import path from "path";
 
 // 1. Cloudinary Configuration
 cloudinary.config({
@@ -9,7 +8,6 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
 
 // 2. Cloudinary Storage Instances
 const tagImageStorage = new CloudinaryStorage({
@@ -44,8 +42,17 @@ const uploadTagImages = multer({
   storage: tagImageStorage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (req, file, cb) => {
-    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"];
-    allowed.includes(file.mimetype) ? cb(null, true) : cb(new Error("Invalid image file type"), false);
+    const allowed = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/svg+xml",
+    ];
+    allowed.includes(file.mimetype)
+      ? cb(null, true)
+      : cb(new Error("Invalid image file type"), false);
   },
 });
 
@@ -53,8 +60,16 @@ const uploadTagVideos = multer({
   storage: tagVideoStorage,
   limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
   fileFilter: (req, file, cb) => {
-    const allowed = ["video/mp4", "video/quicktime", "video/x-msvideo", "video/x-matroska", "video/webm"];
-    allowed.includes(file.mimetype) ? cb(null, true) : cb(new Error("Invalid video file type"), false);
+    const allowed = [
+      "video/mp4",
+      "video/quicktime",
+      "video/x-msvideo",
+      "video/x-matroska",
+      "video/webm",
+    ];
+    allowed.includes(file.mimetype)
+      ? cb(null, true)
+      : cb(new Error("Invalid video file type"), false);
   },
 });
 
@@ -62,8 +77,17 @@ const uploadTagAudio = multer({
   storage: tagAudioStorage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
   fileFilter: (req, file, cb) => {
-    const allowed = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/aac", "audio/flac", "audio/mp4"];
-    allowed.includes(file.mimetype) ? cb(null, true) : cb(new Error("Invalid audio file type"), false);
+    const allowed = [
+      "audio/mpeg",
+      "audio/wav",
+      "audio/ogg",
+      "audio/aac",
+      "audio/flac",
+      "audio/mp4",
+    ];
+    allowed.includes(file.mimetype)
+      ? cb(null, true)
+      : cb(new Error("Invalid audio file type"), false);
   },
 });
 
@@ -72,8 +96,10 @@ export const handleTagImageUpload = (fieldName = "images", maxCount = 10) => {
   const upload = uploadTagImages.array(fieldName, maxCount);
   return (req, res, next) => {
     upload(req, res, (err) => {
-      if (err) return res.status(400).json({ status: "error", message: err.message });
-      if (req.files && req.files.length > 0) req.body.img_urls = req.files.map(f => f.secure_url || f.path);
+      if (err)
+        return res.status(400).json({ status: "error", message: err.message });
+      if (req.files && req.files.length > 0)
+        req.body.img_urls = req.files.map((f) => f.secure_url || f.path);
       next();
     });
   };
@@ -81,11 +107,13 @@ export const handleTagImageUpload = (fieldName = "images", maxCount = 10) => {
 
 export const handleTagVideoUpload = (fieldName = "videos", maxCount = 10) => {
   const upload = uploadTagVideos.array(fieldName, maxCount);
+  console.log("aman madarchod", upload);
   return (req, res, next) => {
     upload(req, res, (err) => {
-      console.log(err.message);
-      if (err) return res.status(400).json({ status: "error", message: err.message });
-      if (req.files && req.files.length > 0) req.body.video_urls = req.files.map(f => f.secure_url || f.path);
+      if (err)
+        return res.status(400).json({ status: "error", message: err.message });
+      if (req.files && req.files.length > 0)
+        req.body.video_urls = req.files.map((f) => f.secure_url || f.path);
       next();
     });
   };
@@ -95,8 +123,10 @@ export const handleTagAudioUpload = (fieldName = "audio", maxCount = 10) => {
   const upload = uploadTagAudio.array(fieldName, maxCount);
   return (req, res, next) => {
     upload(req, res, (err) => {
-      if (err) return res.status(400).json({ status: "error", message: err.message });
-      if (req.files && req.files.length > 0) req.body.audio_urls = req.files.map(f => f.secure_url || f.path);
+      if (err)
+        return res.status(400).json({ status: "error", message: err.message });
+      if (req.files && req.files.length > 0)
+        req.body.audio_urls = req.files.map((f) => f.secure_url || f.path);
       next();
     });
   };
@@ -106,33 +136,37 @@ export const handleTagMixedUpload = () => {
   const upload = multer({
     limits: { fileSize: 100 * 1024 * 1024 },
   }).fields([
-    { name: 'images', maxCount: 10 },
-    { name: 'videos', maxCount: 10 },
-    { name: 'audio', maxCount: 10 },
+    { name: "images", maxCount: 10 },
+    { name: "videos", maxCount: 10 },
+    { name: "audio", maxCount: 10 },
   ]);
 
   return (req, res, next) => {
     upload(req, res, (err) => {
       if (err) {
-        return res.status(400).json({ status: 'error', message: err.message });
+        return res.status(400).json({ status: "error", message: err.message });
       }
       if (req.files) {
         if (req.files.images) {
-          req.body.img_urls = req.files.images.map((f) => f.secure_url || f.path);
+          req.body.img_urls = req.files.images.map(
+            (f) => f.secure_url || f.path
+          );
         }
         if (req.files.videos) {
-          req.body.video_urls = req.files.videos.map((f) => f.secure_url || f.path);
+          req.body.video_urls = req.files.videos.map(
+            (f) => f.secure_url || f.path
+          );
         }
         if (req.files.audio) {
-          req.body.audio_urls = req.files.audio.map((f) => f.secure_url || f.path);
+          req.body.audio_urls = req.files.audio.map(
+            (f) => f.secure_url || f.path
+          );
         }
       }
       next();
     });
   };
 };
-
-
 
 export const applyCloudinaryWatermark = (req, res) => {
   const getPublicIdFromUrl = (url) => {
@@ -151,7 +185,6 @@ export const applyCloudinaryWatermark = (req, res) => {
       });
     }
 
-  
     const videoPublicId = getPublicIdFromUrl(videoUrl);
     const watermarkPublicId = getPublicIdFromUrl(watermarkUrl);
 
@@ -162,16 +195,14 @@ export const applyCloudinaryWatermark = (req, res) => {
       });
     }
 
-    
     const safeWatermarkId = watermarkPublicId.replace(/\//g, ":");
-
 
     const watermarkedUrl = cloudinary.url(videoPublicId, {
       cloud_name: "dmxn5vut7",
       resource_type: "video",
       transformation: [
         {
-          overlay: safeWatermarkId, 
+          overlay: safeWatermarkId,
           gravity: "south_east",
           x: 20,
           y: 20,
