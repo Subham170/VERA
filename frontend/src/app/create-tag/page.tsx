@@ -101,6 +101,7 @@ export default function CreateTagPage() {
     subtitle: "",
     steps: [] as { text: string; completed: boolean }[],
     progress: 0,
+    iconType: "default" as "default" | "download" | "delete" | "verify" | "ai",
   });
 
   useEffect(() => {
@@ -190,6 +191,7 @@ export default function CreateTagPage() {
         { text: "Verification complete", completed: false },
       ],
       progress: 0,
+      iconType: "verify",
     });
 
     try {
@@ -285,6 +287,7 @@ export default function CreateTagPage() {
         { text: "Generating detailed report", completed: false },
       ],
       progress: 0,
+      iconType: "ai",
     });
 
     try {
@@ -441,6 +444,7 @@ export default function CreateTagPage() {
         steps={loadingModal.steps}
         progress={loadingModal.progress}
         showSecurityNote={true}
+        iconType={loadingModal.iconType}
       />
 
       {/* Media Already Verified Overlay */}

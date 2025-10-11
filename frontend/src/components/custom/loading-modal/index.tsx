@@ -1,6 +1,13 @@
 "use client";
 
-import { Info, Shield } from "lucide-react";
+import {
+  Brain,
+  Download,
+  Info,
+  SearchCheck,
+  Shield,
+  Trash2,
+} from "lucide-react";
 
 interface LoadingModalProps {
   isVisible: boolean;
@@ -12,6 +19,7 @@ interface LoadingModalProps {
   }[];
   progress: number; // 0-100
   showSecurityNote?: boolean;
+  iconType?: "default" | "download" | "delete" | "verify" | "ai";
 }
 
 export default function LoadingModal({
@@ -21,16 +29,56 @@ export default function LoadingModal({
   steps,
   progress,
   showSecurityNote = true,
+  iconType = "default",
 }: LoadingModalProps) {
   if (!isVisible) return null;
+
+  const getIconAndColor = () => {
+    switch (iconType) {
+      case "download":
+        return {
+          icon: Download,
+          bgColor: "bg-blue-600",
+          iconColor: "text-white",
+        };
+      case "delete":
+        return {
+          icon: Trash2,
+          bgColor: "bg-red-600",
+          iconColor: "text-white",
+        };
+      case "verify":
+        return {
+          icon: SearchCheck,
+          bgColor: "bg-green-600",
+          iconColor: "text-white",
+        };
+      case "ai":
+        return {
+          icon: Brain,
+          bgColor: "bg-purple-600",
+          iconColor: "text-white",
+        };
+      default:
+        return {
+          icon: Shield,
+          bgColor: "bg-blue-600",
+          iconColor: "text-white",
+        };
+    }
+  };
+
+  const { icon: IconComponent, bgColor, iconColor } = getIconAndColor();
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-[#2A2D35] border border-[#3A3D45] rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
         {/* Header */}
         <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Shield className="w-8 h-8 text-white" />
+          <div
+            className={`w-16 h-16 ${bgColor} rounded-full flex items-center justify-center mx-auto mb-4`}
+          >
+            <IconComponent className={`w-8 h-8 ${iconColor}`} />
           </div>
           <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
           <p className="text-gray-300 text-sm">{subtitle}</p>
@@ -71,7 +119,7 @@ export default function LoadingModal({
           <div className="bg-[#1a1d23] border border-blue-500/30 rounded-lg p-3 flex items-start space-x-2">
             <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
             <p className="text-gray-300 text-xs">
-              Your media is processed securely and never stored permanently
+              Your media is processed securely
             </p>
           </div>
         )}

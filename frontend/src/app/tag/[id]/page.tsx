@@ -160,6 +160,7 @@ export default function TagPage() {
     subtitle: "",
     steps: [] as { text: string; completed: boolean }[],
     progress: 0,
+    iconType: "default" as "default" | "download" | "delete" | "verify" | "ai",
   });
   const [confirmationModal, setConfirmationModal] = useState({
     isVisible: false,
@@ -261,6 +262,7 @@ export default function TagPage() {
         { text: "Preparing download", completed: false },
       ],
       progress: 0,
+      iconType: "download",
     });
 
     performDownload();
@@ -572,6 +574,7 @@ export default function TagPage() {
         { text: "Deletion complete", completed: false },
       ],
       progress: 0,
+      iconType: "delete",
     });
 
     try {
@@ -776,6 +779,7 @@ export default function TagPage() {
         steps={loadingModal.steps}
         progress={loadingModal.progress}
         showSecurityNote={true}
+        iconType={loadingModal.iconType}
       />
       <ConfirmationModal
         isVisible={confirmationModal.isVisible}
