@@ -9,7 +9,7 @@ import {
   NEXT_PUBLIC_PINATA_JWT,
 } from "@/lib/config";
 import { ethers, type TransactionResponse } from "ethers";
-import { BadgeCheck, Download, Music, Share2, Trash2 } from "lucide-react";
+import { BadgeCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Music, Share2, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -82,6 +82,11 @@ interface Tag {
   createdAt: string;
   mediacid: string;
   metadatacid: string;
+  img_urls?: string[];
+  video_urls?: string[];
+  audio_urls?: string[];
+  file_count?: number;
+  is_bulk_upload?: boolean;
 }
 
 interface Metadata {
@@ -93,6 +98,15 @@ interface Metadata {
     natural: number;
   };
   contentAnalysis: string;
+  isBulkUpload?: boolean;
+  totalFiles?: number;
+  files?: Array<{
+    name: string;
+    description: string;
+    mediaType: string;
+    detectionResult: any;
+    cloudinaryUrl: string;
+  }>;
 }
 
 export default function TagPage() {
@@ -108,6 +122,8 @@ export default function TagPage() {
     null
   );
   const [isDeregistering, setIsDeregistering] = useState(false);
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  const [isFilesDropdownOpen, setIsFilesDropdownOpen] = useState(false);
 
   useEffect(() => {
     const getAddress = async () => {
@@ -123,6 +139,11 @@ export default function TagPage() {
     };
     getAddress();
   }, []);
+
+  useEffect(() => {
+    // Reset carousel index when tag changes
+    setCurrentMediaIndex(0);
+  }, [tag]);
 
   useEffect(() => {
     if (!id) {
@@ -474,37 +495,132 @@ export default function TagPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
           <div className="relative">
             <div className="aspect-[1/1] w-full overflow-hidden rounded-[20px] bg-black flex items-center justify-center">
-              {tag.type === "video" ? (
-                <video
-                  src={tag.primary_media_url}
-                  className="w-full h-full object-cover"
-                  controls
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                >
-                  Your browser does not support the video tag.
-                </video>
-              ) : tag.type === "audio" ? (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 p-4">
-                  <Music className="w-24 h-24 text-gray-500 mb-4" />
-                  <audio
-                    src={tag.primary_media_url}
-                    controls
-                    className="w-full"
-                  >
-                    Your browser does not support the audio element.
-                  </audio>
+              {tag.is_bulk_upload ? (
+                // Bulk upload carousel
+                <div className="relative w-full h-full">
+                  {(() => {
+                    const mediaUrls = tag.type === "img" ? (tag.img_urls || []) : 
+                                     tag.type === "video" ? (tag.video_urls || []) : 
+                                     (tag.audio_urls || []);
+                    const currentUrl = mediaUrls[currentMediaIndex] || tag.primary_media_url;
+                    
+                    // Ensure currentMediaIndex is within bounds
+                    if (currentMediaIndex >= mediaUrls.length) {
+                      setCurrentMediaIndex(0);
+                    }
+                    
+                    return (
+                      <>
+                        {tag.type === "video" ? (
+                          <video
+                            src={currentUrl}
+                            className="w-full h-full object-cover"
+                            controls
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        ) : tag.type === "audio" ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 p-4">
+                            <Music className="w-24 h-24 text-gray-500 mb-4" />
+                            <audio
+                              src={currentUrl}
+                              controls
+                              className="w-full"
+                            >
+                              Your browser does not support the audio element.
+                            </audio>
+                          </div>
+                        ) : (
+                          <Image
+                            src={currentUrl}
+                            alt={tag.file_name}
+                            fill
+                            className="object-cover"
+                            priority
+                          />
+                        )}
+                        
+                        {/* Carousel Navigation */}
+                        {mediaUrls.length > 1 && (
+                          <>
+                            <button
+                              onClick={() => setCurrentMediaIndex(prev => prev > 0 ? prev - 1 : mediaUrls.length - 1)}
+                              className="absolute left-4 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                            >
+                              <ChevronLeft className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => setCurrentMediaIndex(prev => prev < mediaUrls.length - 1 ? prev + 1 : 0)}
+                              className="absolute right-4 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                            >
+                              <ChevronRight className="w-5 h-5" />
+                            </button>
+                            
+                            {/* File counter */}
+                            <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1">
+                              <span className="text-white text-sm font-medium">
+                                {currentMediaIndex + 1} of {mediaUrls.length}
+                              </span>
+                            </div>
+                            
+                            {/* Dots indicator */}
+                            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+                              {mediaUrls.map((_, index) => (
+                                <button
+                                  key={index}
+                                  onClick={() => setCurrentMediaIndex(index)}
+                                  className={`w-2 h-2 rounded-full transition-colors ${
+                                    index === currentMediaIndex ? "bg-white" : "bg-white/50"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               ) : (
-                <Image
-                  src={tag.primary_media_url}
-                  alt={tag.file_name}
-                  fill
-                  className="object-cover"
-                  priority
-                />
+                // Single media display
+                <>
+                  {tag.type === "video" ? (
+                    <video
+                      src={tag.primary_media_url}
+                      className="w-full h-full object-cover"
+                      controls
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  ) : tag.type === "audio" ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 p-4">
+                      <Music className="w-24 h-24 text-gray-500 mb-4" />
+                      <audio
+                        src={tag.primary_media_url}
+                        controls
+                        className="w-full"
+                      >
+                        Your browser does not support the audio element.
+                      </audio>
+                    </div>
+                  ) : (
+                    <Image
+                      src={tag.primary_media_url}
+                      alt={tag.file_name}
+                      fill
+                      className="object-cover"
+                      priority
+                    />
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -514,6 +630,11 @@ export default function TagPage() {
               <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                 <BadgeCheck className="w-4 h-4 text-white" />
               </div>
+              {tag.is_bulk_upload && (
+                <div className="bg-blue-500/20 text-blue-300 px-3 py-1 rounded-lg text-sm font-medium">
+                  {tag.file_count} files
+                </div>
+              )}
             </div>
             <div className="space-y-4 text-gray-300 leading-relaxed">
               <div>
@@ -526,6 +647,88 @@ export default function TagPage() {
                   metadata?.description || "No description provided."
                 )}
               </div>
+              
+              {/* Bulk upload file details - Dropdown */}
+              {tag.is_bulk_upload && metadata?.isBulkUpload && metadata.files && metadata.files.length > 0 && (
+                <div className="pt-4 border-t border-gray-700">
+                  <button
+                    onClick={() => setIsFilesDropdownOpen(!isFilesDropdownOpen)}
+                    className="flex items-center justify-between w-full p-3 rounded-lg border border-gray-700 hover:bg-gray-800/50 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <h3 className="text-lg font-semibold text-white">
+                        Files in Collection ({metadata.files.length})
+                      </h3>
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-2 h-2 rounded-full ${
+                          (() => {
+                            const currentFile = metadata.files?.[currentMediaIndex];
+                            const naturalProb = currentFile?.detectionResult?.natural_probability || currentFile?.detectionResult?.natural || 0;
+                            const deepfakeProb = currentFile?.detectionResult?.deepfake_probability || currentFile?.detectionResult?.deepfake || 0;
+                            return naturalProb > deepfakeProb ? "bg-green-500" : "bg-red-500";
+                          })()
+                        }`} />
+                        <span className="text-sm text-gray-400">
+                          {(() => {
+                            const currentFile = metadata.files?.[currentMediaIndex];
+                            const naturalProb = currentFile?.detectionResult?.natural_probability || currentFile?.detectionResult?.natural || 0;
+                            return `${naturalProb}% natural`;
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                    {isFilesDropdownOpen ? (
+                      <ChevronUp className="w-5 h-5 text-gray-400" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-400" />
+                    )}
+                  </button>
+                  
+                  {isFilesDropdownOpen && (
+                    <div className="mt-3 space-y-2 max-h-60 overflow-y-auto">
+                      {metadata.files.map((file, index) => {
+                        if (!file) return null;
+                        
+                        const naturalProb = file.detectionResult?.natural_probability || file.detectionResult?.natural || 0;
+                        const deepfakeProb = file.detectionResult?.deepfake_probability || file.detectionResult?.deepfake || 0;
+                        
+                        return (
+                          <div
+                            key={index}
+                            className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                              index === currentMediaIndex
+                                ? "bg-blue-500/20 border-blue-500/50"
+                                : "bg-gray-800/50 border-gray-700 hover:bg-gray-700/50"
+                            }`}
+                            onClick={() => setCurrentMediaIndex(index)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-white font-medium truncate">
+                                  {file.name || `File ${index + 1}`}
+                                </p>
+                                <p className="text-gray-400 text-sm">
+                                  {file.mediaType || 'unknown'} • {naturalProb}% natural
+                                </p>
+                              </div>
+                              <div className="flex items-center space-x-2 ml-3">
+                                <div className={`w-2 h-2 rounded-full ${
+                                  naturalProb > deepfakeProb
+                                    ? "bg-green-500"
+                                    : "bg-red-500"
+                                }`} />
+                                <span className="text-xs text-gray-400">
+                                  {index + 1}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="pt-4 border-t border-gray-700 space-y-4">
                 <h2 className="text-lg font-semibold text-white">
                   AI Analysis Report
@@ -539,49 +742,127 @@ export default function TagPage() {
                   </div>
                 ) : metadata ? (
                   <>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 mb-2">
-                        PROBABILITY
-                      </p>
-                      <div className="w-full bg-gray-700 rounded-full h-2.5 flex overflow-hidden">
-                        <div
-                          className="bg-green-500 h-2.5"
-                          style={{
-                            width: `${metadata.probabilities.natural}%`,
-                          }}
-                        ></div>
-                        <div
-                          className="bg-yellow-500 h-2.5"
-                          style={{
-                            width: `${metadata.probabilities.deepfake}%`,
-                          }}
-                        ></div>
-                      </div>
-                      <div className="flex justify-between text-xs mt-1">
-                        <span className="text-green-400">
-                          Natural: {metadata.probabilities.natural}%
-                        </span>
-                        <span className="text-yellow-400">
-                          Deepfake: {metadata.probabilities.deepfake}%
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 mb-1">
-                        CONTENT ANALYSIS
-                      </p>
-                      <p className="text-sm text-gray-300">
-                        {metadata.contentAnalysis}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 mb-1">
-                        REGISTERED BY
-                      </p>
-                      <p className="font-mono text-sm text-white">
-                        {metadata.signerAddress}
-                      </p>
-                    </div>
+                    {metadata.isBulkUpload ? (
+                      // Bulk upload analysis - show current file's analysis
+                      <>
+                        {(() => {
+                          const currentFile = metadata.files?.[currentMediaIndex];
+                          if (!currentFile?.detectionResult) {
+                            return (
+                              <p className="text-sm text-red-400">
+                                No analysis data available for this file.
+                              </p>
+                            );
+                          }
+                          
+                          const detectionResult = currentFile.detectionResult;
+                          return (
+                            <>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-400 mb-2">
+                                  PROBABILITY (Current File)
+                                </p>
+                                <div className="w-full bg-gray-700 rounded-full h-2.5 flex overflow-hidden">
+                                  <div
+                                    className="bg-green-500 h-2.5"
+                                    style={{
+                                      width: `${detectionResult.natural_probability || 0}%`,
+                                    }}
+                                  ></div>
+                                  <div
+                                    className="bg-yellow-500 h-2.5"
+                                    style={{
+                                      width: `${detectionResult.deepfake_probability || 0}%`,
+                                    }}
+                                  ></div>
+                                </div>
+                                <div className="flex justify-between text-xs mt-1">
+                                  <span className="text-green-400">
+                                    Natural: {detectionResult.natural_probability || 0}%
+                                  </span>
+                                  <span className="text-yellow-400">
+                                    Deepfake: {detectionResult.deepfake_probability || 0}%
+                                  </span>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-400 mb-1">
+                                  CONTENT ANALYSIS
+                                </p>
+                                <p className="text-sm text-gray-300">
+                                  {detectionResult.reasoning?.overall || "No analysis available"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-400 mb-1">
+                                  FILE DETAILS
+                                </p>
+                                <p className="text-sm text-gray-300">
+                                  <strong>Name:</strong> {currentFile.name}<br/>
+                                  <strong>Type:</strong> {currentFile.mediaType}<br/>
+                                  <strong>File {currentMediaIndex + 1} of {metadata.files?.length || 0}</strong>
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-400 mb-1">
+                                  REGISTERED BY
+                                </p>
+                                <p className="font-mono text-sm text-white">
+                                  {(metadata as any).uploader || "Unknown"}
+                                </p>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </>
+                    ) : (
+                      // Single upload analysis
+                      <>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400 mb-2">
+                            PROBABILITY
+                          </p>
+                          <div className="w-full bg-gray-700 rounded-full h-2.5 flex overflow-hidden">
+                            <div
+                              className="bg-green-500 h-2.5"
+                              style={{
+                                width: `${metadata.probabilities?.natural || 0}%`,
+                              }}
+                            ></div>
+                            <div
+                              className="bg-yellow-500 h-2.5"
+                              style={{
+                                width: `${metadata.probabilities?.deepfake || 0}%`,
+                              }}
+                            ></div>
+                          </div>
+                          <div className="flex justify-between text-xs mt-1">
+                            <span className="text-green-400">
+                              Natural: {metadata.probabilities?.natural || 0}%
+                            </span>
+                            <span className="text-yellow-400">
+                              Deepfake: {metadata.probabilities?.deepfake || 0}%
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400 mb-1">
+                            CONTENT ANALYSIS
+                          </p>
+                          <p className="text-sm text-gray-300">
+                            {metadata.contentAnalysis || "No analysis available"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400 mb-1">
+                            REGISTERED BY
+                          </p>
+                          <p className="font-mono text-sm text-white">
+                            {metadata.signerAddress || "Unknown"}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </>
                 ) : (
                   <p className="text-sm text-red-400">

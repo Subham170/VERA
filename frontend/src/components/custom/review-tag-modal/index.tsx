@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { API_ENDPOINTS } from "@/lib/config";
 import { MetaMaskInpageProvider } from "@metamask/providers";
 import { ethers, type TransactionResponse } from "ethers";
-import { Check, Eye, RefreshCw, Wallet, Zap } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Eye, RefreshCw, Wallet, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -226,14 +226,280 @@ export default function ReviewTagModal({
       return toast.error("This function can only be called in the browser.");
     }
 
+    if (typeof window.ethereum === "undefined")
+      return toast.error("MetaMask is not installed.");
+
+    // Handle bulk upload mode
+    if (isBulkMode) {
+      const bulkDataRaw = localStorage.getItem("bulkUploadData") || sessionStorage.getItem("bulkUploadData");
+      if (!bulkDataRaw) {
+        return toast.error("Bulk upload data not found. Please re-analyze.");
+      }
+      
+      const bulkData = JSON.parse(bulkDataRaw);
+      const naturalImages = bulkData.files ? bulkData.files.filter((item: any) => 
+        item.detectionResult.natural_probability > item.detectionResult.deepfake_probability
+      ) : [];
+      
+      if (naturalImages.length === 0) {
+        return toast.error("No natural images to register. Please try different files.");
+      }
+      
+      // Proceed with bulk registration
+      setIsRegistering(true);
+      
+      setLoadingModal({
+        isVisible: true,
+        title: "Registering Natural Images",
+        subtitle: `Processing ${naturalImages.length} natural images...`,
+        steps: [
+          { text: "Connecting to Sepolia network", completed: false },
+          { text: "Uploading files to IPFS", completed: false },
+          { text: "Saving records to database", completed: false },
+          { text: "Confirming on blockchain", completed: false },
+        ],
+        progress: 0,
+      });
+      
+      try {
+        // Switch to Sepolia network
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 10,
+          steps: prev.steps.map((step, index) =>
+            index === 0 ? { ...step, completed: true } : step
+          ),
+        }));
+
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: "0xaa36a7" }],
+        });
+      } catch (switchError) {
+        if ((switchError as { code: number }).code === 4902) {
+          try {
+            await window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: "0xaa36a7",
+                  chainName: "Sepolia",
+                  rpcUrls: ["https://rpc.sepolia.org"],
+                  nativeCurrency: {
+                    name: "SepoliaETH",
+                    symbol: "ETH",
+                    decimals: 18,
+                  },
+                  blockExplorerUrls: ["https://sepolia.etherscan.io"],
+                },
+              ],
+            });
+          } catch (addError) {
+            toast.error("Failed to add Sepolia network to MetaMask.");
+            setIsRegistering(false);
+            setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+            return;
+          }
+        } else {
+          toast.error("Failed to switch to Sepolia network.");
+          setIsRegistering(false);
+          setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+          return;
+        }
+      }
+
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const walletAddress = await signer.getAddress();
+
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 30,
+          steps: prev.steps.map((step, index) =>
+            index === 1 ? { ...step, completed: true } : step
+          ),
+        }));
+
+        // Process all natural images as a single bulk upload
+        const mediaFiles: File[] = [];
+        const mediaUrls: string[] = [];
+        const allMetadata: any[] = [];
+        
+        // Download all files and prepare data
+        for (let i = 0; i < naturalImages.length; i++) {
+          const item = naturalImages[i];
+          
+          // Update progress
+          const progress = 30 + ((i + 1) / naturalImages.length) * 20;
+          setLoadingModal((prev) => ({
+            ...prev,
+            progress: progress,
+            subtitle: `Preparing image ${i + 1} of ${naturalImages.length}: ${item.name}`,
+          }));
+
+          // Download the file from Cloudinary URL for IPFS upload
+          let mediaFile: File;
+          try {
+            const response = await fetch(item.detectionResult.cloudinary_url);
+            const blob = await response.blob();
+            mediaFile = new File([blob], item.name, { type: blob.type });
+            mediaFiles.push(mediaFile);
+            mediaUrls.push(item.detectionResult.cloudinary_url);
+          } catch (error) {
+            console.error(`Failed to download ${item.name} from Cloudinary:`, error);
+            // Create a placeholder file if download fails
+            mediaFile = new File([""], item.name, { type: `image/${item.mediaType}` });
+            mediaFiles.push(mediaFile);
+            mediaUrls.push(item.detectionResult.cloudinary_url);
+          }
+          
+          // Prepare metadata for this item
+          allMetadata.push({
+            name: item.name,
+            description: item.description,
+            mediaType: item.mediaType,
+            detectionResult: item.detectionResult,
+            cloudinaryUrl: item.detectionResult.cloudinary_url,
+          });
+        }
+
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 50,
+          subtitle: "Uploading files to IPFS...",
+        }));
+
+        // Upload all files to IPFS
+        const mediaCids: string[] = [];
+        for (let i = 0; i < mediaFiles.length; i++) {
+          const mediaCid = await uploadFileToPinata(mediaFiles[i]);
+          mediaCids.push(mediaCid);
+        }
+        
+        // Create combined metadata
+        const combinedMetadata = {
+          collectionName: bulkData.collectionName || "My Collection",
+          collectionDescription: bulkData.collectionDescription || "",
+          totalFiles: naturalImages.length,
+          files: allMetadata,
+          uploader: walletAddress,
+          timestamp: new Date().toISOString(),
+          isBulkUpload: true,
+        };
+        
+        const metadataFile = new File([JSON.stringify(combinedMetadata)], "bulk-metadata.json", {
+          type: "application/json",
+        });
+        const metadataCid = await uploadFileToPinata(metadataFile);
+        
+        // Generate content hash for the first file (representative hash)
+        const contentHash = await generateSha256Hash(mediaFiles[0]);
+        
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 70,
+          subtitle: "Saving to database...",
+        }));
+
+        // Save to database as a single bulk record
+        const mediaType = naturalImages[0].mediaType || "image";
+        const fileFieldName = `${mediaType}s`;
+        
+        const routeMap: Record<string, string> = {
+          images: API_ENDPOINTS.TAGS_WITH_IMAGES,
+          videos: API_ENDPOINTS.TAGS_WITH_VIDEOS,
+          audios: API_ENDPOINTS.TAGS_WITH_AUDIO,
+        };
+        const route = routeMap[fileFieldName] || API_ENDPOINTS.TAGS;
+
+        const backendFormData = new FormData();
+        
+        // Add all media files
+        mediaFiles.forEach((file, index) => {
+          backendFormData.append(fileFieldName, file);
+        });
+        
+        // Add all media URLs
+        mediaUrls.forEach((url, index) => {
+          backendFormData.append(`${fileFieldName}_urls`, url);
+        });
+        
+        backendFormData.append("file_name", combinedMetadata.collectionName);
+        backendFormData.append("description", combinedMetadata.collectionDescription);
+        backendFormData.append("hash_address", contentHash);
+        backendFormData.append("mediacid", mediaCids.join(",")); // Comma-separated CIDs
+        backendFormData.append("metadatacid", metadataCid);
+        backendFormData.append("address", walletAddress);
+        backendFormData.append("type", mediaType === "image" ? "img" : mediaType);
+        backendFormData.append("is_bulk_upload", "true");
+        backendFormData.append("file_count", naturalImages.length.toString());
+
+        const backendRes = await fetch(route, {
+          method: "POST",
+          body: backendFormData,
+        });
+        
+        if (!backendRes.ok) {
+          const errorData = await backendRes.json();
+          throw new Error(errorData.message || "Failed to save bulk upload to database.");
+        }
+        
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 85,
+          subtitle: "Registering on blockchain...",
+        }));
+
+        // Register on blockchain
+        const contract = getEthersContract(signer);
+        const formattedHash = "0x" + contentHash;
+        
+        const tx: TransactionResponse = await contract.registerMedia(
+          mediaCids.join(","), // Comma-separated CIDs
+          metadataCid,
+          formattedHash
+        );
+        await tx.wait();
+
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 100,
+          steps: prev.steps.map((step, index) =>
+            index === 3 ? { ...step, completed: true } : step
+          ),
+        }));
+
+        toast.success(`Successfully registered ${naturalImages.length} natural images on-chain!`);
+        localStorage.removeItem("bulkUploadData");
+        sessionStorage.removeItem("bulkUploadData");
+
+        setTimeout(() => {
+          setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+          router.push("/");
+        }, 1000);
+
+      } catch (err) {
+        console.error("Bulk registration error:", err);
+        const error = err as { reason?: string; message?: string };
+        toast.error(
+          error.reason || error.message || "An unexpected error occurred during bulk registration."
+        );
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+      } finally {
+        setIsRegistering(false);
+      }
+      
+      return;
+    }
+
+    // Handle single upload mode
     const tagDataRaw = localStorage.getItem("uploadedTagData");
     const metadataRaw = localStorage.getItem("metadata");
     if (!tagDataRaw)
       return toast.error("Media data not found. Please re-analyze.");
     if (!metadataRaw)
       return toast.error("Metadata not found. Please re-analyze.");
-    if (typeof window.ethereum === "undefined")
-      return toast.error("MetaMask is not installed.");
 
     setIsRegistering(true);
 
@@ -384,6 +650,8 @@ export default function ReviewTagModal({
       toast.success("Media successfully registered on-chain!");
       localStorage.removeItem("uploadedTagData");
       localStorage.removeItem("metadata");
+      localStorage.removeItem("bulkUploadData");
+      sessionStorage.removeItem("bulkUploadData");
 
       setTimeout(() => {
         setLoadingModal((prev) => ({ ...prev, isVisible: false }));
@@ -406,15 +674,33 @@ export default function ReviewTagModal({
     mediaType?: string;
     filePreview?: string;
   }>({});
+  
+  // Bulk upload states
+  const [bulkData, setBulkData] = useState<any[]>([]);
+  const [currentBulkIndex, setCurrentBulkIndex] = useState(0);
+  const [isBulkMode, setIsBulkMode] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const storedData = localStorage.getItem("uploadedTagData");
-      if (storedData) {
+      // First check for bulk upload data
+      const bulkDataRaw = localStorage.getItem("bulkUploadData") || sessionStorage.getItem("bulkUploadData");
+      if (bulkDataRaw) {
         try {
-          setTagData(JSON.parse(storedData));
+          const bulkData = JSON.parse(bulkDataRaw);
+          setBulkData(bulkData);
+          setIsBulkMode(true);
         } catch (error) {
-          console.error("Error parsing stored tag data:", error);
+          console.error("Error parsing bulk upload data:", error);
+        }
+      } else {
+        // Fall back to single upload data
+        const storedData = localStorage.getItem("uploadedTagData");
+        if (storedData) {
+          try {
+            setTagData(JSON.parse(storedData));
+          } catch (error) {
+            console.error("Error parsing stored tag data:", error);
+          }
         }
       }
     }
@@ -437,13 +723,13 @@ export default function ReviewTagModal({
         <Card className="bg-[#2A2D35] border-[#3A3D45] shadow-2xl">
           <CardContent className="p-8">
             <h1 className="text-3xl font-bold text-white mb-4">
-              {isBulkUpload
-                ? "Review your bulk media collection"
+              {isBulkMode
+                ? bulkData.collectionName || "Review Analysis Results"
                 : "Review your media tag"}
             </h1>
             <p className="text-gray-300 text-base mb-8">
-              {isBulkUpload
-                ? `Review your bulk media collection (${fileCount} files) and continue once you're happy with it`
+              {isBulkMode
+                ? `Review the analysis results for all ${bulkData.files ? bulkData.files.length : 0} files. Only natural images will be uploaded to IPFS.`
                 : "Check out your media tag preview and continue once you're happy with it"}
             </p>
 
@@ -451,39 +737,166 @@ export default function ReviewTagModal({
               <Card className="bg-[#3A3D45] border-[#4A4D55]">
                 <CardContent className="p-6">
                   <div className="space-y-4">
-                    <div className="relative">
-                      <div className="w-full h-64 bg-gradient-to-br from-gray-600 to-gray-800 rounded-lg flex items-center justify-center relative overflow-hidden">
-                        {tagData.filePreview ? (
-                          <img
-                            src={tagData.filePreview}
-                            alt="Media Preview"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="text-center text-white">
-                            <div className="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                              <Eye className="w-12 h-12 text-blue-400" />
+                    {isBulkMode ? (
+                      // Bulk upload carousel with analysis
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-white font-semibold">
+                            Analysis Results ({bulkData.files ? bulkData.files.length : 0} files)
+                          </h3>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => setCurrentBulkIndex(Math.max(0, currentBulkIndex - 1))}
+                              disabled={currentBulkIndex === 0}
+                              className="p-2 rounded-lg bg-gray-700 text-white hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <span className="text-sm text-gray-300 px-3">
+                              {currentBulkIndex + 1} of {bulkData.files ? bulkData.files.length : 0}
+                            </span>
+                            <button
+                              onClick={() => setCurrentBulkIndex(Math.min((bulkData.files ? bulkData.files.length : 1) - 1, currentBulkIndex + 1))}
+                              disabled={currentBulkIndex === (bulkData.files ? bulkData.files.length : 1) - 1}
+                              className="p-2 rounded-lg bg-gray-700 text-white hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="relative">
+                          <div className="w-full h-64 bg-gradient-to-br from-gray-600 to-gray-800 rounded-lg flex items-center justify-center relative overflow-hidden">
+                            {bulkData.files && bulkData.files[currentBulkIndex]?.detectionResult?.cloudinary_url ? (
+                              bulkData.files[currentBulkIndex].mediaType === 'image' ? (
+                                <img
+                                  src={bulkData.files[currentBulkIndex].detectionResult.cloudinary_url}
+                                  alt={bulkData.files[currentBulkIndex].name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                  }}
+                                />
+                              ) : bulkData.files[currentBulkIndex].mediaType === 'video' ? (
+                                <video
+                                  src={bulkData.files[currentBulkIndex].detectionResult.cloudinary_url}
+                                  className="w-full h-full object-cover"
+                                  controls
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <span className="text-gray-400 text-sm">Audio Preview</span>
+                                </div>
+                              )
+                            ) : null}
+                            <div className="hidden text-center text-white">
+                              <div className="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Eye className="w-12 h-12 text-blue-400" />
+                              </div>
+                              <p className="text-sm text-gray-400">
+                                Preview unavailable
+                              </p>
                             </div>
-                            <p className="text-sm text-gray-400">
-                              Media Preview
-                            </p>
+                            {/* Status indicator overlay */}
+                            {bulkData.files && bulkData.files[currentBulkIndex]?.detectionResult && (
+                              <div className={`absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium ${
+                                bulkData.files[currentBulkIndex].detectionResult.deepfake_probability > bulkData.files[currentBulkIndex].detectionResult.natural_probability
+                                  ? 'bg-red-500 text-white'
+                                  : 'bg-green-500 text-white'
+                              }`}>
+                                {bulkData.files[currentBulkIndex].detectionResult.deepfake_probability > bulkData.files[currentBulkIndex].detectionResult.natural_probability ? 'FAKE' : 'NATURAL'}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Analysis details */}
+                        {bulkData.files && bulkData.files[currentBulkIndex]?.detectionResult && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-white font-semibold truncate">
+                                {bulkData.files[currentBulkIndex].name}
+                              </h3>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                bulkData.files[currentBulkIndex].detectionResult.deepfake_probability > bulkData.files[currentBulkIndex].detectionResult.natural_probability
+                                  ? 'bg-red-500/20 text-red-400'
+                                  : 'bg-green-500/20 text-green-400'
+                              }`}>
+                                {bulkData.files[currentBulkIndex].detectionResult.deepfake_probability > bulkData.files[currentBulkIndex].detectionResult.natural_probability
+                                  ? 'Will be excluded'
+                                  : 'Will proceed to IPFS'
+                                }
+                              </span>
+                            </div>
+
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-gray-400">Deepfake:</span>
+                                <span className={`text-sm font-medium ${
+                                  bulkData.files[currentBulkIndex].detectionResult.deepfake_probability > bulkData.files[currentBulkIndex].detectionResult.natural_probability
+                                    ? 'text-red-400'
+                                    : 'text-green-400'
+                                }`}>
+                                  {bulkData.files[currentBulkIndex].detectionResult.deepfake_probability}%
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-gray-400">Natural:</span>
+                                <span className="text-sm font-medium text-green-400">
+                                  {bulkData.files[currentBulkIndex].detectionResult.natural_probability}%
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="bg-[#2A2D35] p-3 rounded-lg">
+                              <h5 className="text-sm font-medium text-white mb-1">Analysis Summary</h5>
+                              <p className="text-sm text-gray-300">
+                                {bulkData.files[currentBulkIndex].detectionResult.reasoning.overall}
+                              </p>
+                            </div>
                           </div>
                         )}
-                        <div className="absolute bottom-3 right-3 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                          <Check className="w-5 h-5 text-white" />
+                      </div>
+                    ) : (
+                      // Single upload preview
+                      <div className="space-y-4">
+                        <div className="relative">
+                          <div className="w-full h-64 bg-gradient-to-br from-gray-600 to-gray-800 rounded-lg flex items-center justify-center relative overflow-hidden">
+                            {tagData.filePreview ? (
+                              <img
+                                src={tagData.filePreview}
+                                alt="Media Preview"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="text-center text-white">
+                                <div className="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                  <Eye className="w-12 h-12 text-blue-400" />
+                                </div>
+                                <p className="text-sm text-gray-400">
+                                  Media Preview
+                                </p>
+                              </div>
+                            )}
+                            <div className="absolute bottom-3 right-3 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                              <Check className="w-5 h-5 text-white" />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <h3 className="text-white font-semibold truncate">
+                            {fileName}
+                          </h3>
+                          <p className="text-blue-400 text-sm">
+                            @{mediaType} media
+                          </p>
                         </div>
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-white font-semibold truncate">
-                        {isBulkUpload ? collectionName : fileName}
-                      </h3>
-                      <p className="text-blue-400 text-sm">
-                        {isBulkUpload
-                          ? `${fileCount} files in collection`
-                          : `@${mediaType} media`}
-                      </p>
-                    </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -591,6 +1004,25 @@ export default function ReviewTagModal({
               </Card>
             </div>
 
+            {/* Natural images note for bulk mode */}
+            {isBulkMode && bulkData.files && bulkData.files.length > 0 && (
+              <div className="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center">
+                    <Check className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-blue-300 font-medium">
+                      Only natural images go further
+                    </p>
+                    <p className="text-blue-200/80 text-sm">
+                      {bulkData.files.filter(item => item.detectionResult.natural_probability > item.detectionResult.deepfake_probability).length} out of {bulkData.files.length} files will be uploaded to IPFS and registered on-chain
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-[#2A2D35] border-t border-[#3A3D45] p-4 flex justify-between items-center -mx-8 -mb-8 mt-8">
               <Button
                 variant="outline"
@@ -607,7 +1039,7 @@ export default function ReviewTagModal({
                   disabled={isRegistering}
                 >
                   <Wallet className="w-4 h-4 mr-2" />
-                  {isRegistering ? "Processing..." : "Register on Chain"}
+                  {isRegistering ? "Processing..." : isBulkMode ? `Register ${bulkData.files ? bulkData.files.filter(item => item.detectionResult.natural_probability > item.detectionResult.deepfake_probability).length : 0} Natural Images on Chain` : "Register on Chain"}
                 </Button>
               </div>
             </div>

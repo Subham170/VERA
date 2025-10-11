@@ -9,6 +9,8 @@ import {
   ArrowRight,
   Check,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
   SearchCheck,
   ShieldAlert,
   UploadCloud,
@@ -123,6 +125,13 @@ export default function CreateTagPage() {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Bulk upload states
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [bulkFiles, setBulkFiles] = useState<File[]>([]);
+  const [bulkResults, setBulkResults] = useState<PreparedData[]>([]);
+  const [currentBulkIndex, setCurrentBulkIndex] = useState(0);
+  const [bulkProcessingIndex, setBulkProcessingIndex] = useState(-1);
+
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
@@ -144,9 +153,16 @@ export default function CreateTagPage() {
   }, [isAuthorized, isAuthLoading, router]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (selectedFile) {
-      processFile(selectedFile);
+    const selectedFiles = event.target.files;
+    if (selectedFiles) {
+      if (isBulkMode) {
+        processBulkFiles(Array.from(selectedFiles));
+      } else {
+        const selectedFile = selectedFiles[0];
+        if (selectedFile) {
+          processFile(selectedFile);
+        }
+      }
     }
   };
 
@@ -162,6 +178,32 @@ export default function CreateTagPage() {
 
     setFile(selectedFile);
     setFileName(selectedFile.name);
+    setPreparedData(null);
+    setDeepfakeWarning(null);
+    setIsHighDeepfakeDetected(false);
+    setIsVerified(false);
+  };
+
+  const processBulkFiles = (selectedFiles: File[]) => {
+    // Validate file types
+    const validTypes = ['image/', 'video/', 'audio/'];
+    const validFiles = selectedFiles.filter(file => 
+      validTypes.some(type => file.type.startsWith(type))
+    );
+
+    if (validFiles.length === 0) {
+      toast.error('Please select valid image, video, or audio files.');
+      return;
+    }
+
+    if (validFiles.length !== selectedFiles.length) {
+      toast.error(`${selectedFiles.length - validFiles.length} invalid files were skipped.`);
+    }
+
+    setBulkFiles(validFiles);
+    setBulkResults([]);
+    setCurrentBulkIndex(0);
+    setBulkProcessingIndex(-1);
     setPreparedData(null);
     setDeepfakeWarning(null);
     setIsHighDeepfakeDetected(false);
@@ -196,8 +238,12 @@ export default function CreateTagPage() {
 
     const files = event.dataTransfer.files;
     if (files && files.length > 0) {
-      const droppedFile = files[0];
-      processFile(droppedFile);
+      if (isBulkMode) {
+        processBulkFiles(Array.from(files));
+      } else {
+        const droppedFile = files[0];
+        processFile(droppedFile);
+      }
     }
   };
 
@@ -444,6 +490,229 @@ export default function CreateTagPage() {
     }
   };
 
+  const handleBulkVerifyOnChain = async () => {
+    if (bulkFiles.length === 0) return toast.error("Please select files first.");
+    if (typeof window.ethereum === "undefined")
+      return toast.error("MetaMask is not installed.");
+
+    setIsVerifying(true);
+    setIsVerified(false);
+
+    // Initialize loading modal
+    setLoadingModal({
+      isVisible: true,
+      title: "Verifying Uniqueness",
+      subtitle: "Checking blockchain for duplicate media...",
+      steps: [
+        { text: "Generating file hashes", completed: false },
+        { text: "Connecting to blockchain", completed: false },
+        { text: "Checking for duplicates", completed: false },
+        { text: "Verification complete", completed: false },
+      ],
+      progress: 0,
+    });
+
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const contract = getEthersContract(provider);
+      const validFiles: File[] = [];
+
+      for (let i = 0; i < bulkFiles.length; i++) {
+        const currentFile = bulkFiles[i];
+        
+        // Update progress
+        const progress = ((i + 1) / bulkFiles.length) * 100;
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: progress,
+          subtitle: `Checking file ${i + 1} of ${bulkFiles.length}: ${currentFile.name}`,
+          steps: prev.steps.map((step, index) => {
+            if (index === 0 && i === 0) return { ...step, completed: true };
+            if (index === 1 && i === 0) return { ...step, completed: true };
+            if (index === 2 && i < bulkFiles.length) return { ...step, completed: true };
+            if (index === 3 && i === bulkFiles.length - 1) return { ...step, completed: true };
+            return step;
+          }),
+        }));
+
+        try {
+          const contentHash = await generateSha256Hash(currentFile);
+          const formattedHash = "0x" + contentHash;
+
+          try {
+            await contract.getMedia(formattedHash);
+            toast.error(`File "${currentFile.name}" has already been registered on the blockchain.`);
+          } catch (error: any) {
+            if (error.code === "CALL_EXCEPTION" || error.code === "BAD_DATA") {
+              // File is unique, add to valid files
+              validFiles.push(currentFile);
+            } else {
+              throw error;
+            }
+          }
+        } catch (error: any) {
+          console.error(`Error verifying ${currentFile.name}:`, error);
+          toast.error(`Failed to verify ${currentFile.name}: ${error.message}`);
+        }
+      }
+
+      // Update bulk files to only include valid ones
+      setBulkFiles(validFiles);
+      
+      if (validFiles.length === 0) {
+        toast.error("All files have already been registered on the blockchain.");
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+        return;
+      }
+
+      if (validFiles.length !== bulkFiles.length) {
+        toast.success(`${validFiles.length} out of ${bulkFiles.length} files are unique and can proceed.`);
+      } else {
+        toast.success("All files are unique. You can now detect deepfakes.");
+      }
+
+      setIsVerified(true);
+
+      // Close modal after brief delay
+      setTimeout(() => {
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+      }, 1000);
+
+    } catch (err: any) {
+      toast.error(
+        err.message || "An unexpected error occurred during verification."
+      );
+      setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleBulkAnalysis = async () => {
+    if (bulkFiles.length === 0) return toast.error("Please select files to analyze.");
+    if (!isVerified) return toast.error("Please verify the files' uniqueness on-chain first.");
+    
+    setIsDetecting(true);
+    setBulkResults([]);
+    setBulkProcessingIndex(0);
+    setDeepfakeWarning(null);
+    setIsHighDeepfakeDetected(false);
+
+    // Initialize loading modal
+    setLoadingModal({
+      isVisible: true,
+      title: "Analyzing Multiple Files",
+      subtitle: `Processing ${bulkFiles.length} files...`,
+      steps: [
+        { text: "Preparing files for analysis", completed: false },
+        { text: "Running AI analysis on each file", completed: false },
+        { text: "Generating detailed reports", completed: false },
+        { text: "Analysis complete", completed: false },
+      ],
+      progress: 0,
+    });
+
+    try {
+      const results: PreparedData[] = [];
+      
+      for (let i = 0; i < bulkFiles.length; i++) {
+        const currentFile = bulkFiles[i];
+        setBulkProcessingIndex(i);
+        
+        // Update progress
+        const progress = ((i + 1) / bulkFiles.length) * 100;
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: progress,
+          subtitle: `Processing file ${i + 1} of ${bulkFiles.length}: ${currentFile.name}`,
+          steps: prev.steps.map((step, index) => {
+            if (index === 0 && i === 0) return { ...step, completed: true };
+            if (index === 1 && i < bulkFiles.length) return { ...step, completed: true };
+            if (index === 2 && i === bulkFiles.length - 1) return { ...step, completed: true };
+            if (index === 3 && i === bulkFiles.length - 1) return { ...step, completed: true };
+            return step;
+          }),
+        }));
+
+        try {
+          const formData = new FormData();
+          formData.append("file_data", currentFile);
+
+          const response = await fetch(`${API_BASE_URL}/api/detect`, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Detection failed for ${currentFile.name}: ${errorText}`);
+          }
+
+          const detectionResult: DetectionResult = await response.json();
+
+          const fileToDataUrl = (file: File): Promise<string> => {
+            return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = (error) => reject(error);
+              reader.readAsDataURL(file);
+            });
+          };
+
+          const base64Preview = await fileToDataUrl(currentFile);
+          const tagDataPayload: PreparedData = {
+            name: currentFile.name,
+            description: description || "",
+            mediaType: currentFile.type.split("/")[0] || "image",
+            filePreview: base64Preview,
+            detectionResult: detectionResult,
+          };
+
+          results.push(tagDataPayload);
+
+          // Check if file is fake using improved logic: deepfake_prob > natural_prob
+          const isFake = detectionResult.deepfake_probability > detectionResult.natural_probability;
+          
+          if (isFake) {
+            toast.error(`Fake content detected in ${currentFile.name} (Deepfake: ${detectionResult.deepfake_probability}% vs Natural: ${detectionResult.natural_probability}%) - will be excluded from registration`);
+          }
+        } catch (error: any) {
+          console.error(`Error processing ${currentFile.name}:`, error);
+          toast.error(`Failed to analyze ${currentFile.name}: ${error.message}`);
+        }
+      }
+
+      setBulkResults(results);
+      setCurrentBulkIndex(0);
+      
+      // Filter natural images using improved logic: natural_prob > deepfake_prob
+      const naturalImages = results.filter(result => 
+        result.detectionResult.natural_probability > result.detectionResult.deepfake_probability
+      );
+      
+      if (results.length === 0) {
+        toast.error("Failed to analyze any files. Please try again.");
+      } else if (naturalImages.length === 0) {
+        toast.error("All files detected as potential deepfakes. Please try different files.");
+      } else {
+        toast.success(`Analysis complete! ${naturalImages.length} out of ${results.length} files are natural and will proceed to registration.`);
+      }
+
+      // Close modal after brief delay
+      setTimeout(() => {
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+      }, 1000);
+
+    } catch (err: any) {
+      console.error("Bulk analysis error:", err);
+      toast.error(err.message || "Could not analyze the files.");
+      setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+    } finally {
+      setIsDetecting(false);
+      setBulkProcessingIndex(-1);
+    }
+  };
+
   const handleCancel = () => {
     router.push("/");
   };
@@ -482,6 +751,7 @@ export default function CreateTagPage() {
         </button>
 
         <div className="container mx-auto px-4 py-8">
+
           <div className="flex justify-center items-center mb-12">
             <div className="flex items-center space-x-8">
               <div className="flex flex-col items-center">
@@ -510,9 +780,45 @@ export default function CreateTagPage() {
               className="bg-[#2A2D35] p-8 rounded-lg border border-[#3A3D45] space-y-6"
             >
               <div>
-                <label className="text-sm font-medium text-gray-300 mb-2 block">
-                  Upload Media
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium text-gray-300">
+                    Upload Media
+                  </label>
+                  {/* Bulk Upload Toggle */}
+                  <div className="flex items-center space-x-3">
+                    <span className="text-xs text-gray-400">Single</span>
+                    <button
+                      onClick={() => {
+                        setIsBulkMode(!isBulkMode);
+                        // Reset states when switching modes
+                        if (!isBulkMode) {
+                          setBulkFiles([]);
+                          setBulkResults([]);
+                          setCurrentBulkIndex(0);
+                          setBulkProcessingIndex(-1);
+                        } else {
+                          setFile(null);
+                          setFileName("");
+                          setDescription("");
+                          setPreparedData(null);
+                          setDeepfakeWarning(null);
+                          setIsHighDeepfakeDetected(false);
+                          setIsVerified(false);
+                        }
+                      }}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 ${
+                        isBulkMode ? 'bg-blue-600' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          isBulkMode ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-xs text-gray-400">Bulk</span>
+                  </div>
+                </div>
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   onDragOver={handleDragOver}
@@ -531,6 +837,7 @@ export default function CreateTagPage() {
                     onChange={handleFileChange}
                     className="hidden"
                     accept="image/*,video/*,audio/*"
+                    multiple={isBulkMode}
                   />
                   <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 ${
                     isDragOver 
@@ -541,18 +848,34 @@ export default function CreateTagPage() {
                       isDragOver ? "text-blue-400" : "text-gray-400"
                     }`} />
                   </div>
-                  {file ? (
-                    <p className="mt-2 text-sm text-green-400">
-                      {file.name} selected
-                    </p>
-                  ) : isDragOver ? (
-                    <p className="mt-2 text-sm text-blue-400 font-medium">
-                      Drop your file here
-                    </p>
+                  {isBulkMode ? (
+                    bulkFiles.length > 0 ? (
+                      <p className="mt-2 text-sm text-green-400">
+                        {bulkFiles.length} file{bulkFiles.length > 1 ? 's' : ''} selected
+                      </p>
+                    ) : isDragOver ? (
+                      <p className="mt-2 text-sm text-blue-400 font-medium">
+                        Drop your files here
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-sm text-gray-400">
+                        Click to browse or drag & drop multiple files here
+                      </p>
+                    )
                   ) : (
-                    <p className="mt-2 text-sm text-gray-400">
-                      Click to browse or drag & drop your file here
-                    </p>
+                    file ? (
+                      <p className="mt-2 text-sm text-green-400">
+                        {file.name} selected
+                      </p>
+                    ) : isDragOver ? (
+                      <p className="mt-2 text-sm text-blue-400 font-medium">
+                        Drop your file here
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-sm text-gray-400">
+                        Click to browse or drag & drop your file here
+                      </p>
+                    )
                   )}
                 </div>
               </div>
@@ -561,14 +884,14 @@ export default function CreateTagPage() {
                   htmlFor="fileName"
                   className="text-sm font-medium text-gray-300 mb-2 block"
                 >
-                  Media Name
+                  {isBulkMode ? "Collection Name" : "Media Name"}
                 </label>
                 <input
                   type="text"
                   id="fileName"
                   value={fileName}
                   onChange={(e) => setFileName(e.target.value)}
-                  placeholder="e.g., My Summer Vacation Video"
+                  placeholder={isBulkMode ? "e.g., My Photo Collection" : "e.g., My Summer Vacation Video"}
                   className="w-full bg-[#3A3D45] border border-gray-600 text-white rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
@@ -590,33 +913,64 @@ export default function CreateTagPage() {
                 />
               </div>
 
-              <div className="flex items-center space-x-4">
-                <button
-                  type="button"
-                  onClick={handleVerifyOnChain}
-                  disabled={!file || isProcessing || isVerified}
-                  className="w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 disabled:cursor-not-allowed bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-600"
-                >
-                  {isVerified ? (
-                    <Check className="w-5 h-5 mr-2" />
-                  ) : (
-                    <SearchCheck className="w-5 h-5 mr-2" />
-                  )}
-                  {isVerifying
-                    ? "Verifying..."
-                    : isVerified
-                    ? "Verified"
-                    : "1. Verify Uniqueness"}
-                </button>
-                <button
-                  type="submit"
-                  disabled={!isVerified || isProcessing}
-                  className="w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 disabled:cursor-not-allowed bg-gray-700 text-white hover:bg-gray-800 disabled:bg-gray-600"
-                >
-                  <ShieldAlert className="w-5 h-5 mr-2" />
-                  {isDetecting ? "Analyzing..." : "2. Detect Deepfake"}
-                </button>
-              </div>
+              {isBulkMode ? (
+                <div className="flex items-center space-x-4">
+                  <button
+                    type="button"
+                    onClick={handleBulkVerifyOnChain}
+                    disabled={bulkFiles.length === 0 || isProcessing || isVerified}
+                    className="w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 disabled:cursor-not-allowed bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-600"
+                  >
+                    {isVerified ? (
+                      <Check className="w-5 h-5 mr-2" />
+                    ) : (
+                      <SearchCheck className="w-5 h-5 mr-2" />
+                    )}
+                    {isVerifying
+                      ? "Verifying..."
+                      : isVerified
+                      ? "Verified"
+                      : "1. Verify Uniqueness"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBulkAnalysis}
+                    disabled={!isVerified || isProcessing}
+                    className="w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 disabled:cursor-not-allowed bg-gray-700 text-white hover:bg-gray-800 disabled:bg-gray-600"
+                  >
+                    <ShieldAlert className="w-5 h-5 mr-2" />
+                    {isDetecting ? "Analyzing..." : "2. Detect Deepfake"}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-4">
+                  <button
+                    type="button"
+                    onClick={handleVerifyOnChain}
+                    disabled={!file || isProcessing || isVerified}
+                    className="w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 disabled:cursor-not-allowed bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-600"
+                  >
+                    {isVerified ? (
+                      <Check className="w-5 h-5 mr-2" />
+                    ) : (
+                      <SearchCheck className="w-5 h-5 mr-2" />
+                    )}
+                    {isVerifying
+                      ? "Verifying..."
+                      : isVerified
+                      ? "Verified"
+                      : "1. Verify Uniqueness"}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!isVerified || isProcessing}
+                    className="w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 disabled:cursor-not-allowed bg-gray-700 text-white hover:bg-gray-800 disabled:bg-gray-600"
+                  >
+                    <ShieldAlert className="w-5 h-5 mr-2" />
+                    {isDetecting ? "Analyzing..." : "2. Detect Deepfake"}
+                  </button>
+                </div>
+              )}
             </form>
           </div>
 
@@ -686,18 +1040,65 @@ export default function CreateTagPage() {
             </div>
           )}
 
+
           {!isHighDeepfakeDetected && (
             <div className="max-w-2xl mx-auto mt-6">
               <button
-                onClick={() => router.push("/review-tag")}
-                disabled={!preparedData || isProcessing}
+                onClick={() => {
+                  if (isBulkMode) {
+                    // Store ALL results (including deepfakes) for display on review page
+                    if (bulkResults.length > 0) {
+                      // Compress data by removing base64 previews and storing only essential info
+                      const compressedData = {
+                        collectionName: fileName || "My Collection",
+                        collectionDescription: description || "",
+                        files: bulkResults.map(result => ({
+                          name: result.name,
+                          description: result.description,
+                          mediaType: result.mediaType,
+                          detectionResult: {
+                            media_type: result.detectionResult.media_type,
+                            deepfake_probability: result.detectionResult.deepfake_probability,
+                            natural_probability: result.detectionResult.natural_probability,
+                            reasoning: result.detectionResult.reasoning,
+                            cloudinary_url: result.detectionResult.cloudinary_url,
+                            cloudinary_public_id: result.detectionResult.cloudinary_public_id
+                          }
+                          // Removed filePreview to reduce size
+                        }))
+                      };
+                      
+                      try {
+                        // Try to store in localStorage first
+                        localStorage.setItem("bulkUploadData", JSON.stringify(compressedData));
+                        router.push("/review-tag");
+                      } catch (error) {
+                        // If localStorage fails due to quota, use sessionStorage
+                        console.warn("localStorage quota exceeded, using sessionStorage");
+                        try {
+                          sessionStorage.setItem("bulkUploadData", JSON.stringify(compressedData));
+                          router.push("/review-tag");
+                        } catch (sessionError) {
+                          // If both fail, show error and suggest reducing file count
+                          toast.error("Too many files to process at once. Please try with fewer files or smaller file sizes.");
+                          console.error("Both localStorage and sessionStorage quota exceeded:", sessionError);
+                        }
+                      }
+                    } else {
+                      toast.error("No files analyzed. Please run analysis first.");
+                    }
+                  } else {
+                    router.push("/review-tag");
+                  }
+                }}
+                disabled={isBulkMode ? bulkResults.length === 0 : !preparedData || isProcessing}
                 className={`w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] ${
-                  !preparedData || isProcessing
+                  (isBulkMode ? bulkResults.length === 0 : !preparedData) || isProcessing
                     ? "bg-gray-600 text-gray-400 cursor-not-allowed"
                     : "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl hover:shadow-green-500/25"
                 }`}
               >
-                <span>Register on Chain</span>
+                <span>{isBulkMode ? "Review Analysis Results" : "Register on Chain"}</span>
                 <ArrowRight className="w-5 h-5 ml-2" />
               </button>
             </div>
