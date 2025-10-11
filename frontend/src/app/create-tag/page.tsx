@@ -29,7 +29,7 @@ const ABI = [
 const CONTRACT_ADDRESS = "0x8477f56742062936fb94CE466d6b96Ee5f244afe";
 
 function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
-  return new ethers.Contract(CONTRACT_ADDRESS, ABI, signerOrProvider);
+  return new ethers.Contract(CONTRACT_ADDRESS as string, ABI, signerOrProvider);
 }
 
 function generateSha256Hash(file: File): Promise<string> {
@@ -59,7 +59,7 @@ async function uploadFileToPinata(file: File): Promise<string> {
   const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
     method: "POST",
     headers: {
-      Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJjYWQ4ZTFkMC0xYzEwLTRlODYtYjQ5MS04ZDE3NmNlZTIwMTciLCJlbWFpbCI6InRlY2hub3RvcGljczIwMDRAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjQzMjVhMDYzYWViMTNhMzIwYWFmIiwic2NvcGVkS2V5U2VjcmV0IjoiNjI5ZTljOWM1NjRlNjI0ZDdiMjU5ODFmMzQ0MDIzNzQyM2U5ODc4OWQwYTU2YTdmYWYwZmM3ZDkwNzY0ZjBjMyIsImV4cCI6MTc5MTQwNzg0Mn0.WtLYbmqgguRrXI44F78F8DCbQ_8MadDF_J2GY2PLrlE`,
+      Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJjYWQ4ZTFkMC0xYzEwLTRlODYtYjQ5MS04ZDE3NmNlZTIwMTciLCJlbWFpbCI6InRlY2hub3RvcGljczIwMDRAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImNkYjcxNWYzMDlkZGQ1NGQxM2IzIiwic2NvcGVkS2V5U2VjcmV0IjoiZTdmNzkyYWZkNDdlMGY5Nzc4NDBjODM2OTZiNjg3ZWZhNjJlYWEzNzA5OTZhZDRhODUzMWZiZjkzNmRhYjcwOSIsImV4cCI6MTc5MTY3MjQ5NH0.Z1gHTbV5jPnvLzPB_utXp3hGizBqBp1ZkFymo-BvB0A`,
     },
     body: data,
   });

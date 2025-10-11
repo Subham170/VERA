@@ -33,7 +33,7 @@ export const createTag = async (req, res) => {
       });
     }
 
-    // Validate type
+    console.log(type)
     if (!["img", "video", "audio"].includes(type)) {
       return res.status(400).json({
         status: "error",
@@ -587,3 +587,6 @@ export const getPopularTags = async (req, res) => {
     });
   }
 };
+
+
+

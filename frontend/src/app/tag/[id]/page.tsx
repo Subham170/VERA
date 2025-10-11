@@ -9,7 +9,7 @@ import {
   NEXT_PUBLIC_PINATA_JWT,
 } from "@/lib/config";
 import { ethers, type TransactionResponse } from "ethers";
-import { BadgeCheck, Download, Share2, Trash2 } from "lucide-react";
+import { BadgeCheck, Download, Music, Share2, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -28,14 +28,16 @@ const ABI = [
   "error AlreadyDeregistered(bytes32 contentHash)",
 ];
 
-const CONTRACT_ADDRESS = "0x8477f56742062936fb94CE466d6b96Ee5f244afe";
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
+
+const WATERMARK_URL = "https://res.cloudinary.com/dmxn5vut7/image/upload/v1760146871/vera/detection/images/pm1gjtyunblk5kyfxltr.png";
+
 
 function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
-  return new ethers.Contract(CONTRACT_ADDRESS, ABI, signerOrProvider);
+  return new ethers.Contract(CONTRACT_ADDRESS as string, ABI, signerOrProvider);
 }
 
 function decodeCustomError(errorData: string) {
-  // Common custom error selectors
   const errorSelectors = {
     "0x6999de4a": "MediaNotFound",
     "0xaa31b366": "MediaNotRegistered",
@@ -186,6 +188,8 @@ export default function TagPage() {
       return;
     }
 
+    const toastId = toast.loading("Preparing download...");
+
     try {
       if (tag.type === "img") {
         const img = new window.Image();
@@ -225,7 +229,48 @@ export default function TagPage() {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
 
-        toast.success("Downloaded");
+        toast.success("Download started!", { id: toastId });
+
+      } else if (tag.type === "video") {
+        toast.loading("Applying watermark...", { id: toastId });
+
+        const payload = {
+            videoUrl: tag.primary_media_url,
+            watermarkUrl: WATERMARK_URL,
+        };
+
+        const watermarkResponse = await fetch(
+          "http://localhost:5000/api/tags/watermark",
+          {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          }
+        );
+
+        if (!watermarkResponse.ok) {
+          const errorData = await watermarkResponse.json();
+          throw new Error(errorData.message || "Failed to apply watermark.");
+        }
+
+        const result = await watermarkResponse.json();
+        const watermarkedUrl = result.data.watermarkedUrl;
+
+        if (!watermarkedUrl) {
+            throw new Error("Backend did not return a watermarked URL.");
+        }
+        
+        const a = document.createElement("a");
+        a.href = watermarkedUrl;
+        a.download = `watermarked_${tag.file_name}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        toast.success("Watermarked video download started!", { id: toastId });
+
       } else {
         const response = await fetch(tag.primary_media_url);
         const blob = await response.blob();
@@ -237,11 +282,11 @@ export default function TagPage() {
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
-        toast.success("Downloaded original media");
+        toast.success("Download started!", { id: toastId });
       }
     } catch (err: any) {
-      console.error("Download error:", err);
-      toast.error("Failed to download with watermark.");
+      console.error("Download/Watermark error:", err);
+      toast.error(err.message || "An error occurred.", { id: toastId });
     }
   };
 
@@ -288,13 +333,9 @@ export default function TagPage() {
       const contract = getEthersContract(signer);
       const formattedHash = "0x" + tag.hash_address;
 
-      // First, check if the media exists on the blockchain
       toast.loading("Checking media status on blockchain...", { id: toastId });
       try {
         const mediaData = await contract.getMedia(formattedHash);
-        console.log("Media data from blockchain:", mediaData);
-
-        // Check if the media is actually registered by the current user
         if (
           mediaData.uploader.toLowerCase() !== currentUserAddress.toLowerCase()
         ) {
@@ -310,7 +351,6 @@ export default function TagPage() {
 
       toast.loading("Awaiting on-chain transaction...", { id: toastId });
 
-      // Try to estimate gas first to catch potential errors
       try {
         await contract.deregisterMedia.estimateGas(formattedHash);
       } catch (estimateError: any) {
@@ -369,13 +409,11 @@ export default function TagPage() {
     } catch (err: any) {
       console.error("Deregister error:", err);
 
-      // Try to decode custom error if available
       let errorMessage =
         err.reason || err.message || "Failed to deregister media.";
 
       if (err.data) {
         const decodedError = decodeCustomError(err.data);
-        console.log("Decoded error:", decodedError);
 
         switch (decodedError) {
           case "MediaNotFound":
@@ -436,14 +474,39 @@ export default function TagPage() {
       <div className="max-w-7xl mx-auto p-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
           <div className="relative">
-            <div className="aspect-[1/1] w-full overflow-hidden rounded-[20px]">
-              <Image
-                src={tag.primary_media_url}
-                alt={tag.file_name}
-                fill
-                className="object-cover"
-                priority
-              />
+            <div className="aspect-[1/1] w-full overflow-hidden rounded-[20px] bg-black flex items-center justify-center">
+              {tag.type === "video" ? (
+                <video
+                  src={tag.primary_media_url}
+                  className="w-full h-full object-cover"
+                  controls
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                >
+                  Your browser does not support the video tag.
+                </video>
+              ) : tag.type === "audio" ? (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 p-4">
+                  <Music className="w-24 h-24 text-gray-500 mb-4" />
+                  <audio
+                    src={tag.primary_media_url}
+                    controls
+                    className="w-full"
+                  >
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              ) : (
+                <Image
+                  src={tag.primary_media_url}
+                  alt={tag.file_name}
+                  fill
+                  className="object-cover"
+                  priority
+                />
+              )}
             </div>
           </div>
           <div className="space-y-6">
@@ -454,7 +517,7 @@ export default function TagPage() {
               </div>
             </div>
             <div className="space-y-4 text-gray-300 leading-relaxed">
-              <p>
+              <div>
                 {isMetadataLoading ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
@@ -463,7 +526,7 @@ export default function TagPage() {
                 ) : (
                   metadata?.description || "No description provided."
                 )}
-              </p>
+              </div>
               <div className="pt-4 border-t border-gray-700 space-y-4">
                 <h2 className="text-lg font-semibold text-white">
                   AI Analysis Report
