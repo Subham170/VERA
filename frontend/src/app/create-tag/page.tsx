@@ -1,0 +1,720 @@
+"use client";
+
+import AuthenticatedLayout from "@/components/custom/layouts/authenticated-layout";
+import LoadingModal from "@/components/custom/loading-modal";
+import { useAuth } from "@/context/AuthContext";
+import { API_BASE_URL } from "@/lib/config";
+import { ethers } from "ethers";
+import {
+  ArrowRight,
+  Check,
+  CheckCircle,
+  SearchCheck,
+  ShieldAlert,
+  UploadCloud,
+  X,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import toast, { Toaster } from "react-hot-toast";
+
+const ABI = [
+  "function registerMedia(string memory mediaCid, string memory metadataCid, bytes32 contentHash) public",
+  "function getMedia(bytes32 contentHash) public view returns (string memory mediaCid, string memory metadataCid, address uploader, uint256 timestamp)",
+  "function getMediaByOwner(address owner) public view returns (bytes32[] memory)",
+  "error MediaAlreadyRegistered(bytes32 contentHash)",
+  "error MediaNotFound(bytes32 contentHash)",
+];
+
+const CONTRACT_ADDRESS = "0x8477f56742062936fb94CE466d6b96Ee5f244afe";
+
+function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
+  return new ethers.Contract(CONTRACT_ADDRESS, ABI, signerOrProvider);
+}
+
+function generateSha256Hash(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const data = reader.result as ArrayBuffer;
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+        resolve(hashHex);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function uploadFileToPinata(file: File): Promise<string> {
+  const data = new FormData();
+  data.append("file", file);
+  const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJjYWQ4ZTFkMC0xYzEwLTRlODYtYjQ5MS04ZDE3NmNlZTIwMTciLCJlbWFpbCI6InRlY2hub3RvcGljczIwMDRAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjQzMjVhMDYzYWViMTNhMzIwYWFmIiwic2NvcGVkS2V5U2VjcmV0IjoiNjI5ZTljOWM1NjRlNjI0ZDdiMjU5ODFmMzQ0MDIzNzQyM2U5ODc4OWQwYTU2YTdmYWYwZmM3ZDkwNzY0ZjBjMyIsImV4cCI6MTc5MTQwNzg0Mn0.WtLYbmqgguRrXI44F78F8DCbQ_8MadDF_J2GY2PLrlE`,
+    },
+    body: data,
+  });
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(
+      `Failed to upload to Pinata: ${res.statusText} - ${errorBody}`
+    );
+  }
+  const result = await res.json();
+  if (!result.IpfsHash)
+    throw new Error("Invalid response from Pinata: IPFS hash not found.");
+  return result.IpfsHash;
+}
+
+function base64ToFile(base64: string, fileName: string): File {
+  const arr = base64.split(",");
+  const mimeMatch = arr[0].match(/:(.*?);/);
+  if (!mimeMatch)
+    throw new Error("Invalid Base64 string: MIME type not found.");
+  const mime = mimeMatch[1];
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) u8arr[n] = bstr.charCodeAt(n);
+  return new File([u8arr], fileName, { type: mime });
+}
+
+interface DetectionResult {
+  media_type: string;
+  deepfake_probability: number;
+  natural_probability: number;
+  reasoning: {
+    content_analysis: string;
+    deepfake_indicators: string;
+    authentic_indicators: string;
+    overall: string;
+  };
+  raw_model_output: string;
+  sdk_raw: any;
+  provided_source: string;
+  cloudinary_url: string;
+  cloudinary_public_id: string;
+}
+
+interface PreparedData {
+  name: string;
+  description: string;
+  mediaType: string;
+  filePreview: string;
+  detectionResult: DetectionResult;
+}
+
+export default function CreateTagPage() {
+  const { isAuthorized, isLoading: isAuthLoading } = useAuth();
+  const router = useRouter();
+
+  const [file, setFile] = useState<File | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [description, setDescription] = useState("");
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [deepfakeWarning, setDeepfakeWarning] = useState<string | null>(null);
+  const [preparedData, setPreparedData] = useState<PreparedData | null>(null);
+  const [isHighDeepfakeDetected, setIsHighDeepfakeDetected] = useState(false);
+  const [loadingModal, setLoadingModal] = useState({
+    isVisible: false,
+    title: "",
+    subtitle: "",
+    steps: [] as { text: string; completed: boolean }[],
+    progress: 0,
+  });
+
+  useEffect(() => {
+    if (!isAuthLoading && !isAuthorized) {
+      router.push("/");
+    }
+  }, [isAuthorized, isAuthLoading, router]);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    if (selectedFile) {
+      processFile(selectedFile);
+    }
+  };
+
+  const processFile = (selectedFile: File) => {
+    // Validate file type
+    const validTypes = ['image/', 'video/', 'audio/'];
+    const isValidType = validTypes.some(type => selectedFile.type.startsWith(type));
+    
+    if (!isValidType) {
+      toast.error('Please select a valid image, video, or audio file.');
+      return;
+    }
+
+    setFile(selectedFile);
+    setFileName(selectedFile.name);
+    setPreparedData(null);
+    setDeepfakeWarning(null);
+    setIsHighDeepfakeDetected(false);
+    setIsVerified(false);
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    // Only set isDragOver to false if we're leaving the drop zone entirely
+    if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragOver(false);
+
+    const files = event.dataTransfer.files;
+    if (files && files.length > 0) {
+      const droppedFile = files[0];
+      processFile(droppedFile);
+    }
+  };
+
+  const handleVerifyOnChain = async () => {
+    if (!file) return toast.error("Please select a file first.");
+    if (typeof window.ethereum === "undefined")
+      return toast.error("MetaMask is not installed.");
+
+    setIsVerifying(true);
+    setIsVerified(false);
+
+    // Initialize loading modal
+    setLoadingModal({
+      isVisible: true,
+      title: "Verifying Uniqueness",
+      subtitle: "Checking blockchain for duplicate media...",
+      steps: [
+        { text: "Generating file hash", completed: false },
+        { text: "Connecting to blockchain", completed: false },
+        { text: "Checking for duplicates", completed: false },
+        { text: "Verification complete", completed: false },
+      ],
+      progress: 0,
+    });
+
+    try {
+      // Step 1: Generate file hash
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 25,
+        steps: prev.steps.map((step, index) =>
+          index === 0 ? { ...step, completed: true } : step
+        ),
+      }));
+
+      const contentHash = await generateSha256Hash(file);
+      const formattedHash = "0x" + contentHash;
+
+      // Step 2: Connect to blockchain
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 50,
+        steps: prev.steps.map((step, index) =>
+          index === 1 ? { ...step, completed: true } : step
+        ),
+      }));
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const contract = getEthersContract(provider);
+
+      // Step 3: Check for duplicates
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 75,
+        steps: prev.steps.map((step, index) =>
+          index === 2 ? { ...step, completed: true } : step
+        ),
+      }));
+
+      try {
+        await contract.getMedia(formattedHash);
+        toast.error("This file has already been registered on the blockchain.");
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+      } catch (error: any) {
+        if (error.code !== "CALL_EXCEPTION" && error.code !== "BAD_DATA") {
+          throw error;
+        }
+
+        // Step 4: Verification complete
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 100,
+          steps: prev.steps.map((step, index) =>
+            index === 3 ? { ...step, completed: true } : step
+          ),
+        }));
+
+        toast.success("This media is unique. You can now detect deepfakes.");
+        setIsVerified(true);
+
+        // Close modal after brief delay
+        setTimeout(() => {
+          setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+        }, 1000);
+      }
+    } catch (err: any) {
+      toast.error(
+        err.message || "An unexpected error occurred during verification."
+      );
+      setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleAnalysis = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!file) return toast.error("Please select a file to analyze.");
+    if (!isVerified)
+      return toast.error("Please verify the file's uniqueness on-chain first.");
+
+    setIsDetecting(true);
+    setDeepfakeWarning(null);
+    setPreparedData(null);
+    setIsHighDeepfakeDetected(false);
+
+    // Initialize loading modal
+    setLoadingModal({
+      isVisible: true,
+      title: "Analyzing Media",
+      subtitle: "Detecting deepfake indicators...",
+      steps: [
+        { text: "Uploading media to secure servers", completed: false },
+        { text: "Running AI analysis algorithms", completed: false },
+        { text: "Verifying authenticity markers", completed: false },
+        { text: "Generating detailed report", completed: false },
+      ],
+      progress: 0,
+    });
+
+    try {
+      // Step 1: Upload media
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 25,
+        steps: prev.steps.map((step, index) =>
+          index === 0 ? { ...step, completed: true } : step
+        ),
+      }));
+
+      const formData = new FormData();
+      formData.append("file_data", file);
+
+      // Step 2: Run AI analysis
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 50,
+        steps: prev.steps.map((step, index) =>
+          index === 1 ? { ...step, completed: true } : step
+        ),
+      }));
+
+      const response = await fetch(`${API_BASE_URL}/api/detect`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Detection service failed: ${errorText}`);
+      }
+      const detectionResult: DetectionResult = await response.json();
+
+      // Step 3: Verify authenticity markers
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 75,
+        steps: prev.steps.map((step, index) =>
+          index === 2 ? { ...step, completed: true } : step
+        ),
+      }));
+
+      if (typeof window.ethereum !== "undefined") {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const signerAddress = await signer.getAddress();
+        const metadataObject = {
+          fileName: fileName,
+          description: description,
+          signerAddress: signerAddress,
+          probabilities: {
+            deepfake: detectionResult.deepfake_probability,
+            natural: detectionResult.natural_probability,
+          },
+          contentAnalysis: detectionResult.reasoning.content_analysis,
+        };
+        localStorage.setItem(
+          "metadata",
+          JSON.stringify(metadataObject, null, 2)
+        );
+      } else {
+        toast.error(
+          "MetaMask not found. Metadata could not be saved with a signer address."
+        );
+      }
+
+      if (detectionResult.deepfake_probability >= 70) {
+        setIsHighDeepfakeDetected(true);
+        setDeepfakeWarning(
+          `High deepfake probability detected (${detectionResult.deepfake_probability}%). Please try another media file.`
+        );
+        toast.error(
+          "High deepfake probability detected. Please try another media file."
+        );
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+        return;
+      } else if (detectionResult.deepfake_probability > 50) {
+        setDeepfakeWarning(
+          `Warning: AI analysis indicates a moderate probability (${detectionResult.deepfake_probability}%).`
+        );
+      }
+
+      const fileToDataUrl = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = (error) => reject(error);
+          reader.readAsDataURL(file);
+        });
+      };
+
+      const base64Preview = await fileToDataUrl(file);
+      const tagDataPayload: PreparedData = {
+        name: fileName,
+        description: description || "",
+        mediaType: file.type.split("/")[0] || "image",
+        filePreview: base64Preview,
+        detectionResult: detectionResult,
+      };
+
+      localStorage.setItem("uploadedTagData", JSON.stringify(tagDataPayload));
+      setPreparedData(tagDataPayload);
+
+      // Step 4: Generate detailed report
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 100,
+        steps: prev.steps.map((step, index) =>
+          index === 3 ? { ...step, completed: true } : step
+        ),
+      }));
+
+      toast.success("Analysis complete. You can now proceed to register.");
+
+      // Close modal after brief delay
+      setTimeout(() => {
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+      }, 1000);
+    } catch (err: any) {
+      console.error("Detection error:", err);
+      toast.error(err.message || "Could not analyze the media.");
+      setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  const handleCancel = () => {
+    router.push("/");
+  };
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthorized) {
+    router.push("/login");
+    return null;
+  }
+
+  const isProcessing = isDetecting || isVerifying;
+
+  return (
+    <AuthenticatedLayout>
+      <LoadingModal
+        isVisible={loadingModal.isVisible}
+        title={loadingModal.title}
+        subtitle={loadingModal.subtitle}
+        steps={loadingModal.steps}
+        progress={loadingModal.progress}
+        showSecurityNote={true}
+      />
+      <main className="min-h-screen bg-[#181A1D]">
+        <button
+          onClick={handleCancel}
+          className="fixed top-20 right-4 w-10 h-10 bg-[#3A3D45] rounded-lg flex items-center justify-center hover:bg-[#4A4D55] transition-colors z-40"
+        >
+          <X className="w-5 h-5 text-white" />
+        </button>
+
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex justify-center items-center mb-12">
+            <div className="flex items-center space-x-8">
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg bg-blue-600">
+                  <span className="font-bold text-lg text-white">1</span>
+                </div>
+                <span className="text-white text-sm mt-3 font-medium">
+                  Add & Analyze Media
+                </span>
+              </div>
+              <div className="w-16 h-0.5 bg-gray-600"></div>
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg bg-white border-2 border-blue-600">
+                  <span className="font-bold text-lg text-blue-600">2</span>
+                </div>
+                <span className="text-white text-sm mt-3 font-medium">
+                  Review & Register
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="max-w-2xl mx-auto">
+            <form
+              onSubmit={handleAnalysis}
+              className="bg-[#2A2D35] p-8 rounded-lg border border-[#3A3D45] space-y-6"
+            >
+              <div>
+                <label className="text-sm font-medium text-gray-300 mb-2 block">
+                  Upload Media
+                </label>
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200 ${
+                    isDragOver
+                      ? "border-blue-500 bg-blue-500/10 scale-[1.02]"
+                      : "border-gray-600 hover:border-blue-500"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="image/*,video/*,audio/*"
+                  />
+                  <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 ${
+                    isDragOver 
+                      ? "bg-blue-500/20 scale-110" 
+                      : "bg-gray-700"
+                  }`}>
+                    <UploadCloud className={`w-6 h-6 transition-colors duration-200 ${
+                      isDragOver ? "text-blue-400" : "text-gray-400"
+                    }`} />
+                  </div>
+                  {file ? (
+                    <p className="mt-2 text-sm text-green-400">
+                      {file.name} selected
+                    </p>
+                  ) : isDragOver ? (
+                    <p className="mt-2 text-sm text-blue-400 font-medium">
+                      Drop your file here
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm text-gray-400">
+                      Click to browse or drag & drop your file here
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label
+                  htmlFor="fileName"
+                  className="text-sm font-medium text-gray-300 mb-2 block"
+                >
+                  Media Name
+                </label>
+                <input
+                  type="text"
+                  id="fileName"
+                  value={fileName}
+                  onChange={(e) => setFileName(e.target.value)}
+                  placeholder="e.g., My Summer Vacation Video"
+                  className="w-full bg-[#3A3D45] border border-gray-600 text-white rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="description"
+                  className="text-sm font-medium text-gray-300 mb-2 block"
+                >
+                  Description (Optional)
+                </label>
+                <textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="A short description of your media file..."
+                  rows={3}
+                  className="w-full bg-[#3A3D45] border border-gray-600 text-white rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <button
+                  type="button"
+                  onClick={handleVerifyOnChain}
+                  disabled={!file || isProcessing || isVerified}
+                  className="w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 disabled:cursor-not-allowed bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-600"
+                >
+                  {isVerified ? (
+                    <Check className="w-5 h-5 mr-2" />
+                  ) : (
+                    <SearchCheck className="w-5 h-5 mr-2" />
+                  )}
+                  {isVerifying
+                    ? "Verifying..."
+                    : isVerified
+                    ? "Verified"
+                    : "1. Verify Uniqueness"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={!isVerified || isProcessing}
+                  className="w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 disabled:cursor-not-allowed bg-gray-700 text-white hover:bg-gray-800 disabled:bg-gray-600"
+                >
+                  <ShieldAlert className="w-5 h-5 mr-2" />
+                  {isDetecting ? "Analyzing..." : "2. Detect Deepfake"}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {deepfakeWarning && (
+            <div
+              className={`max-w-2xl mx-auto mt-6 p-4 border rounded-lg flex items-start space-x-4 ${
+                isHighDeepfakeDetected
+                  ? "bg-red-900/50 border-red-500/60"
+                  : "bg-yellow-900/50 border-yellow-500/60"
+              }`}
+            >
+              <ShieldAlert
+                className={`w-6 h-6 flex-shrink-0 mt-1 ${
+                  isHighDeepfakeDetected ? "text-red-400" : "text-yellow-400"
+                }`}
+              />
+              <div>
+                <h4
+                  className={`font-bold mt-1 ${
+                    isHighDeepfakeDetected ? "text-red-300" : "text-yellow-300"
+                  }`}
+                >
+                  {isHighDeepfakeDetected
+                    ? "Deepfake Detected - Upload Blocked"
+                    : "Moderate Deepfake Risk"}
+                </h4>
+                <p
+                  className={`text-sm mt-1 ${
+                    isHighDeepfakeDetected
+                      ? "text-red-300/80"
+                      : "text-yellow-300/80"
+                  }`}
+                >
+                  {deepfakeWarning}
+                </p>
+                {isHighDeepfakeDetected && (
+                  <div className="mt-3">
+                    <button
+                      onClick={() => {
+                        setFile(null);
+                        setFileName("");
+                        setDescription("");
+                        setPreparedData(null);
+                        setDeepfakeWarning(null);
+                        setIsHighDeepfakeDetected(false);
+                        setIsVerified(false);
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = "";
+                        }
+                      }}
+                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Try Another Media
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {preparedData && !isDetecting && !isHighDeepfakeDetected && (
+            <div className="max-w-2xl mx-auto mt-6 p-4 bg-green-900/50 border border-green-500/60 rounded-lg flex items-center space-x-4">
+              <CheckCircle className="w-6 h-6 text-green-400 flex-shrink-0" />
+              <p className="text-sm text-green-300 font-medium">
+                Analysis complete. You can now proceed to register the media.
+              </p>
+            </div>
+          )}
+
+          {!isHighDeepfakeDetected && (
+            <div className="max-w-2xl mx-auto mt-6">
+              <button
+                onClick={() => router.push("/review-tag")}
+                disabled={!preparedData || isProcessing}
+                className={`w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] ${
+                  !preparedData || isProcessing
+                    ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl hover:shadow-green-500/25"
+                }`}
+              >
+                <span>Register on Chain</span>
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: "#2A2D35",
+            color: "#fff",
+            border: "1px solid #3A3D45",
+          },
+        }}
+      />
+    </AuthenticatedLayout>
+  );
+}
