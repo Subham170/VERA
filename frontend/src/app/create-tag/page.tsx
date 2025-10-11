@@ -26,7 +26,7 @@ const ABI = [
   "error MediaNotFound(bytes32 contentHash)",
 ];
 
-const CONTRACT_ADDRESS = "0x8477f56742062936fb94CE466d6b96Ee5f244afe";
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
 
 function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   return new ethers.Contract(CONTRACT_ADDRESS as string, ABI, signerOrProvider);

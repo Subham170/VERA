@@ -26,7 +26,7 @@ const ABI = [
   "error MediaNotFound(bytes32 contentHash)",
 ];
 
-const CONTRACT_ADDRESS = "0x8477f56742062936fb94CE466d6b96Ee5f244afe";
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS
 
 function base64ToFile(base64: string, fileName: string): File {
   const arr = base64.split(",");
@@ -45,8 +45,7 @@ async function uploadFileToPinata(file: File): Promise<string> {
   const data = new FormData();
   data.append("file", file);
 
-  const PINATA_JWT =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJjYWQ4ZTFkMC0xYzEwLTRlODYtYjQ5MS04ZDE3NmNlZTIwMTciLCJlbWFpbCI6InRlY2hub3RvcGljczIwMDRAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImNkYjcxNWYzMDlkZGQ1NGQxM2IzIiwic2NvcGVkS2V5U2VjcmV0IjoiZTdmNzkyYWZkNDdlMGY5Nzc4NDBjODM2OTZiNjg3ZWZhNjJlYWEzNzA5OTZhZDRhODUzMWZiZjkzNmRhYjcwOSIsImV4cCI6MTc5MTY3MjQ5NH0.Z1gHTbV5jPnvLzPB_utXp3hGizBqBp1ZkFymo-BvB0A";
+  const PINATA_JWT = process.env.NEXT_PUBLIC_PINATA_JWT
 
   const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
     method: "POST",
