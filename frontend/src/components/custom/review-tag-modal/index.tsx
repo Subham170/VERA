@@ -18,7 +18,7 @@ const ABI = [
   "error MediaNotFound(bytes32 contentHash)",
 ];
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
+const CONTRACT_ADDRESS = "0x8477f56742062936fb94CE466d6b96Ee5f244afe";
 
 function base64ToFile(base64: string, fileName: string): File {
   const arr = base64.split(",");
@@ -36,10 +36,14 @@ function base64ToFile(base64: string, fileName: string): File {
 async function uploadFileToPinata(file: File): Promise<string> {
   const data = new FormData();
   data.append("file", file);
+
+  const PINATA_JWT =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJjYWQ4ZTFkMC0xYzEwLTRlODYtYjQ5MS04ZDE3NmNlZTIwMTciLCJlbWFpbCI6InRlY2hub3RvcGljczIwMDRAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImNkYjcxNWYzMDlkZGQ1NGQxM2IzIiwic2NvcGVkS2V5U2VjcmV0IjoiZTdmNzkyYWZkNDdlMGY5Nzc4NDBjODM2OTZiNjg3ZWZhNjJlYWEzNzA5OTZhZDRhODUzMWZiZjkzNmRhYjcwOSIsImV4cCI6MTc5MTY3MjQ5NH0.Z1gHTbV5jPnvLzPB_utXp3hGizBqBp1ZkFymo-BvB0A";
+
   const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
     method: "POST",
     headers: {
-      Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJjYWQ4ZTFkMC0xYzEwLTRlODYtYjQ5MS04ZDE3NmNlZTIwMTciLCJlbWFpbCI6InRlY2hub3RvcGljczIwMDRAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjQzMjVhMDYzYWViMTNhMzIwYWFmIiwic2NvcGVkS2V5U2VjcmV0IjoiNjI5ZTljOWM1NjRlNjI0ZDdiMjU5ODFmMzQ0MDIzNzQyM2U5ODc4OWQwYTU2YTdmYWYwZmM3ZDkwNzY0ZjBjMyIsImV4cCI6MTc5MTQwNzg0Mn0.WtLYbmqgguRrXI44F78F8DCbQ_8MadDF_J2GY2PLrlE`,
+      Authorization: `Bearer ${PINATA_JWT}`,
     },
     body: data,
   });
@@ -117,8 +121,6 @@ export default function ReviewTagModal({
   });
 
   const fetchEthPrice = async () => {
-    // For Sepolia testnet, ETH has no real value
-    // We'll set a placeholder value to indicate it's testnet
     setEthPrice(0);
   };
 
@@ -129,7 +131,6 @@ export default function ReviewTagModal({
       const provider = new ethers.BrowserProvider(window.ethereum);
       const network = await provider.getNetwork();
 
-      // Get network name from chainId
       const networkNames: { [key: string]: string } = {
         "0xaa36a7": "Sepolia Testnet",
         "0x1": "Ethereum Mainnet",
@@ -153,16 +154,12 @@ export default function ReviewTagModal({
 
   const getGasPriceFromEtherscan = async () => {
     try {
-      // Fetch gas prices from Etherscan API for Sepolia testnet
-      // Note: Etherscan API doesn't require an API key for basic gas price queries
       const response = await fetch(
         "https://api-sepolia.etherscan.io/api?module=gastracker&action=gasoracle"
       );
       const data = await response.json();
 
       if (data.status === "1" && data.result) {
-        // Use the "Safe" gas price from Etherscan (recommended for most transactions)
-        // SafeGasPrice is typically the 30th percentile of recent gas prices
         const safeGasPrice = data.result.SafeGasPrice;
         console.log("Etherscan gas prices:", data.result);
         setGasPriceSource("Etherscan Sepolia");
@@ -171,18 +168,13 @@ export default function ReviewTagModal({
     } catch (error) {
       console.error("Error fetching gas price from Etherscan:", error);
     }
-
-    // Fallback to default if Etherscan fails
     setGasPriceSource("Default");
     return ethers.parseUnits("20", "gwei");
   };
 
+
   const estimateGasFees = async () => {
-    if (
-      typeof window === "undefined" ||
-      typeof window.ethereum === "undefined"
-    ) {
-      // Set default values if MetaMask is not available or during SSR
+    if (typeof window?.ethereum === "undefined") {
       setGasPrice("20");
       setGasFee("0.001");
       return;
@@ -194,44 +186,23 @@ export default function ReviewTagModal({
       const signer = await provider.getSigner();
       const contract = getEthersContract(signer);
 
-      // Get current gas price from Etherscan for Sepolia
       const currentGasPrice = await getGasPriceFromEtherscan();
       setGasPrice(ethers.formatUnits(currentGasPrice, "gwei"));
 
-      // Estimate gas for registerMedia function
-      const tagDataRaw = localStorage.getItem("uploadedTagData");
-      if (tagDataRaw) {
-        const tagData = JSON.parse(tagDataRaw);
-        const mediaFile = base64ToFile(tagData.filePreview, tagData.name);
-        const metadataRaw = localStorage.getItem("metadata");
+      // Use dummy data for estimation instead of uploading real files
+      const dummyCid = "Qmaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; // 46 chars, looks like a CID
+      const dummyHash = "0x" + "0".repeat(64);
 
-        if (metadataRaw) {
-          const metadataFile = new File([metadataRaw], "metadata.json", {
-            type: "application/json",
-          });
+      const gasEstimate = await contract.registerMedia.estimateGas(
+        dummyCid,
+        dummyCid,
+        dummyHash
+      );
 
-          const [mediaCid, metadataCid, contentHash] = await Promise.all([
-            uploadFileToPinata(mediaFile),
-            uploadFileToPinata(metadataFile),
-            generateSha256Hash(mediaFile),
-          ]);
-
-          const formattedHash = "0x" + contentHash;
-
-          // Estimate gas with current gas price
-          const gasEstimate = await contract.registerMedia.estimateGas(
-            mediaCid,
-            metadataCid,
-            formattedHash
-          );
-
-          const estimatedFee = gasEstimate * currentGasPrice;
-          setGasFee(ethers.formatEther(estimatedFee));
-        }
-      }
+      const estimatedFee = gasEstimate * currentGasPrice;
+      setGasFee(ethers.formatEther(estimatedFee));
     } catch (error) {
       console.error("Error estimating gas fees:", error);
-      // Set default values if estimation fails
       setGasPrice("20");
       setGasFee("0.001");
     } finally {
@@ -261,7 +232,6 @@ export default function ReviewTagModal({
 
     setIsRegistering(true);
 
-    // Initialize loading modal
     setLoadingModal({
       isVisible: true,
       title: "Registering Media",
@@ -276,7 +246,6 @@ export default function ReviewTagModal({
     });
 
     try {
-      // Step 1: Switch to Sepolia network
       setLoadingModal((prev) => ({
         ...prev,
         progress: 10,
@@ -287,19 +256,19 @@ export default function ReviewTagModal({
 
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0xaa36a7" }], // Sepolia chain ID
-      } as any);
+        params: [{ chainId: "0xaa36a7" }],
+      });
     } catch (switchError: any) {
-      // If Sepolia is not added to MetaMask, add it
       if (switchError.code === 4902) {
         try {
+
           await window.ethereum.request({
             method: "wallet_addEthereumChain",
             params: [
               {
                 chainId: "0xaa36a7",
                 chainName: "Sepolia",
-                rpcUrls: ["https://sepolia.infura.io/v3/"],
+                rpcUrls: ["https://rpc.sepolia.org"],
                 nativeCurrency: {
                   name: "SepoliaETH",
                   symbol: "ETH",
@@ -308,7 +277,7 @@ export default function ReviewTagModal({
                 blockExplorerUrls: ["https://sepolia.etherscan.io"],
               },
             ],
-          } as any);
+          });
         } catch (addError) {
           toast.error("Failed to add Sepolia network to MetaMask.");
           setIsRegistering(false);
@@ -326,11 +295,11 @@ export default function ReviewTagModal({
     try {
       const tagData = JSON.parse(tagDataRaw);
       const mediaFile = base64ToFile(tagData.filePreview, tagData.name);
+      console.log(mediaFile)
       const metadataFile = new File([metadataRaw], "metadata.json", {
         type: "application/json",
       });
 
-      // Step 2: Upload files to IPFS
       setLoadingModal((prev) => ({
         ...prev,
         progress: 30,
@@ -345,7 +314,6 @@ export default function ReviewTagModal({
         generateSha256Hash(mediaFile),
       ]);
 
-      // Step 3: Save to database
       setLoadingModal((prev) => ({
         ...prev,
         progress: 60,
@@ -386,7 +354,6 @@ export default function ReviewTagModal({
         throw new Error(errorData.message || "Failed to save to database.");
       }
 
-      // Step 4: Confirm on blockchain
       setLoadingModal((prev) => ({
         ...prev,
         progress: 80,
@@ -405,7 +372,6 @@ export default function ReviewTagModal({
       );
       await tx.wait();
 
-      // Complete
       setLoadingModal((prev) => ({
         ...prev,
         progress: 100,
@@ -415,7 +381,6 @@ export default function ReviewTagModal({
       localStorage.removeItem("uploadedTagData");
       localStorage.removeItem("metadata");
 
-      // Close modal and redirect after a brief delay
       setTimeout(() => {
         setLoadingModal((prev) => ({ ...prev, isVisible: false }));
         router.push("/");
@@ -429,7 +394,6 @@ export default function ReviewTagModal({
     }
   };
 
-  // Safely get tagData from localStorage, with fallback for SSR
   const [tagData, setTagData] = useState<{
     name?: string;
     mediaType?: string;
@@ -477,7 +441,6 @@ export default function ReviewTagModal({
             </p>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {/* Media Preview Card */}
               <Card className="bg-[#3A3D45] border-[#4A4D55]">
                 <CardContent className="p-6">
                   <div className="space-y-4">
@@ -518,7 +481,6 @@ export default function ReviewTagModal({
                 </CardContent>
               </Card>
 
-              {/* Transaction Fee Card */}
               <Card className="bg-[#3A3D45] border-[#4A4D55]">
                 <CardContent className="p-6">
                   <div className="space-y-4">

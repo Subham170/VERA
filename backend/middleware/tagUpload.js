@@ -83,6 +83,7 @@ export const handleTagVideoUpload = (fieldName = "videos", maxCount = 10) => {
   const upload = uploadTagVideos.array(fieldName, maxCount);
   return (req, res, next) => {
     upload(req, res, (err) => {
+      console.log(err.message);
       if (err) return res.status(400).json({ status: "error", message: err.message });
       if (req.files && req.files.length > 0) req.body.video_urls = req.files.map(f => f.secure_url || f.path);
       next();
