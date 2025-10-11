@@ -34,60 +34,25 @@ function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   return new ethers.Contract(CONTRACT_ADDRESS as string, ABI, signerOrProvider);
 }
 
-function generateSha256Hash(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const data = reader.result as ArrayBuffer;
-        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
-        resolve(hashHex);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = (err) => reject(err);
-    reader.readAsArrayBuffer(file);
-  });
-}
+async function generateContentHash(file: File): Promise<string> {
+  try {
+    // Read the file as ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
 
-async function uploadFileToPinata(file: File): Promise<string> {
-  const data = new FormData();
-  data.append("file", file);
-  const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJjYWQ4ZTFkMC0xYzEwLTRlODYtYjQ5MS04ZDE3NmNlZTIwMTciLCJlbWFpbCI6InRlY2hub3RvcGljczIwMDRAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImNkYjcxNWYzMDlkZGQ1NGQxM2IzIiwic2NvcGVkS2V5U2VjcmV0IjoiZTdmNzkyYWZkNDdlMGY5Nzc4NDBjODM2OTZiNjg3ZWZhNjJlYWEzNzA5OTZhZDRhODUzMWZiZjkzNmRhYjcwOSIsImV4cCI6MTc5MTY3MjQ5NH0.Z1gHTbV5jPnvLzPB_utXp3hGizBqBp1ZkFymo-BvB0A`,
-    },
-    body: data,
-  });
-  if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(
-      `Failed to upload to Pinata: ${res.statusText} - ${errorBody}`
-    );
+    // Generate SHA-256 hash from the file content
+    const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    // Convert to keccak256 hash for smart contract compatibility
+    const keccakHash = ethers.keccak256("0x" + hashHex);
+    return keccakHash;
+  } catch (error) {
+    console.error("Error generating content hash:", error);
+    throw new Error("Failed to generate content hash from file object");
   }
-  const result = await res.json();
-  if (!result.IpfsHash)
-    throw new Error("Invalid response from Pinata: IPFS hash not found.");
-  return result.IpfsHash;
-}
-
-function base64ToFile(base64: string, fileName: string): File {
-  const arr = base64.split(",");
-  const mimeMatch = arr[0].match(/:(.*?);/);
-  if (!mimeMatch)
-    throw new Error("Invalid Base64 string: MIME type not found.");
-  const mime = mimeMatch[1];
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) u8arr[n] = bstr.charCodeAt(n);
-  return new File([u8arr], fileName, { type: mime });
 }
 
 interface DetectionResult {
@@ -138,6 +103,7 @@ export default function CreateTagPage() {
   const [deepfakeWarning, setDeepfakeWarning] = useState<string | null>(null);
   const [preparedData, setPreparedData] = useState<PreparedData | null>(null);
   const [isHighDeepfakeDetected, setIsHighDeepfakeDetected] = useState(false);
+  const [isMediaAlreadyVerified, setIsMediaAlreadyVerified] = useState(false);
   const [loadingModal, setLoadingModal] = useState({
     isVisible: false,
     title: "",
@@ -168,11 +134,13 @@ export default function CreateTagPage() {
 
   const processFile = (selectedFile: File) => {
     // Validate file type
-    const validTypes = ['image/', 'video/', 'audio/'];
-    const isValidType = validTypes.some(type => selectedFile.type.startsWith(type));
-    
+    const validTypes = ["image/", "video/", "audio/"];
+    const isValidType = validTypes.some((type) =>
+      selectedFile.type.startsWith(type)
+    );
+
     if (!isValidType) {
-      toast.error('Please select a valid image, video, or audio file.');
+      toast.error("Please select a valid image, video, or audio file.");
       return;
     }
 
@@ -182,6 +150,7 @@ export default function CreateTagPage() {
     setDeepfakeWarning(null);
     setIsHighDeepfakeDetected(false);
     setIsVerified(false);
+    setIsMediaAlreadyVerified(false);
   };
 
   const processBulkFiles = (selectedFiles: File[]) => {
@@ -261,7 +230,7 @@ export default function CreateTagPage() {
       title: "Verifying Uniqueness",
       subtitle: "Checking blockchain for duplicate media...",
       steps: [
-        { text: "Generating file hash", completed: false },
+        { text: "Generating content hash", completed: false },
         { text: "Connecting to blockchain", completed: false },
         { text: "Checking for duplicates", completed: false },
         { text: "Verification complete", completed: false },
@@ -270,7 +239,7 @@ export default function CreateTagPage() {
     });
 
     try {
-      // Step 1: Generate file hash
+      // Step 1: Generate content hash from original file
       setLoadingModal((prev) => ({
         ...prev,
         progress: 25,
@@ -279,10 +248,9 @@ export default function CreateTagPage() {
         ),
       }));
 
-      const contentHash = await generateSha256Hash(file);
-      const formattedHash = "0x" + contentHash;
-
+      const contentHash = await generateContentHash(file);
       // Step 2: Connect to blockchain
+      console.log("Content hash:", contentHash);
       setLoadingModal((prev) => ({
         ...prev,
         progress: 50,
@@ -304,9 +272,10 @@ export default function CreateTagPage() {
       }));
 
       try {
-        await contract.getMedia(formattedHash);
-        toast.error("This file has already been registered on the blockchain.");
+        await contract.getMedia(contentHash);
         setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+        setIsMediaAlreadyVerified(true);
+        return;
       } catch (error: any) {
         if (error.code !== "CALL_EXCEPTION" && error.code !== "BAD_DATA") {
           throw error;
@@ -742,6 +711,50 @@ export default function CreateTagPage() {
         progress={loadingModal.progress}
         showSecurityNote={true}
       />
+
+      {/* Media Already Verified Overlay */}
+      {isMediaAlreadyVerified && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-300">
+          <div className="bg-[#2A2D35] border border-[#3A3D45] rounded-2xl p-8 max-w-md mx-4 text-center shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+              <CheckCircle className="w-10 h-10 text-green-400" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-4">
+              Media is already Verafied
+            </h3>
+            <p className="text-gray-300 mb-6 leading-relaxed">
+              This media has already been registered on the blockchain and
+              verafied for authenticity.
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setIsMediaAlreadyVerified(false);
+                  setFile(null);
+                  setFileName("");
+                  setDescription("");
+                  setPreparedData(null);
+                  setDeepfakeWarning(null);
+                  setIsHighDeepfakeDetected(false);
+                  setIsVerified(false);
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                  }
+                }}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              >
+                Try Another Media
+              </button>
+              <button
+                onClick={() => setIsMediaAlreadyVerified(false)}
+                className="w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <main className="min-h-screen bg-[#181A1D]">
         <button
           onClick={handleCancel}
@@ -839,14 +852,16 @@ export default function CreateTagPage() {
                     accept="image/*,video/*,audio/*"
                     multiple={isBulkMode}
                   />
-                  <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 ${
-                    isDragOver 
-                      ? "bg-blue-500/20 scale-110" 
-                      : "bg-gray-700"
-                  }`}>
-                    <UploadCloud className={`w-6 h-6 transition-colors duration-200 ${
-                      isDragOver ? "text-blue-400" : "text-gray-400"
-                    }`} />
+                  <div
+                    className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 ${
+                      isDragOver ? "bg-blue-500/20 scale-110" : "bg-gray-700"
+                    }`}
+                  >
+                    <UploadCloud
+                      className={`w-6 h-6 transition-colors duration-200 ${
+                        isDragOver ? "text-blue-400" : "text-gray-400"
+                      }`}
+                    />
                   </div>
                   {isBulkMode ? (
                     bulkFiles.length > 0 ? (
@@ -1017,6 +1032,7 @@ export default function CreateTagPage() {
                         setDeepfakeWarning(null);
                         setIsHighDeepfakeDetected(false);
                         setIsVerified(false);
+                        setIsMediaAlreadyVerified(false);
                         if (fileInputRef.current) {
                           fileInputRef.current.value = "";
                         }

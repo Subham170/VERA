@@ -1,5 +1,7 @@
 "use client";
 
+import ConfirmationModal from "@/components/custom/confirmation-modal";
+import LoadingModal from "@/components/custom/loading-modal";
 import LoadingScreen from "@/components/custom/loading-screen";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,6 +9,7 @@ import {
   NEXT_PUBLIC_PINATA_GATEWAY_TOKEN,
   NEXT_PUBLIC_PINATA_GATEWAY_URL,
   NEXT_PUBLIC_PINATA_JWT,
+  NEXT_PUBLIC_WATERMARK_URL,
 } from "@/lib/config";
 import { ethers, type TransactionResponse } from "ethers";
 import { BadgeCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Music, Share2, Trash2 } from "lucide-react";
@@ -30,11 +33,32 @@ const ABI = [
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
 
-const WATERMARK_URL =
-  "https://res.cloudinary.com/dmxn5vut7/image/upload/v1760146871/vera/detection/images/pm1gjtyunblk5kyfxltr.png";
-
 function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   return new ethers.Contract(CONTRACT_ADDRESS as string, ABI, signerOrProvider);
+}
+
+function formatHashForContract(hashAddress: string): string {
+  // Remove any whitespace
+  let cleanHash = hashAddress.trim();
+
+  // Ensure it starts with 0x
+  if (!cleanHash.startsWith("0x")) {
+    cleanHash = "0x" + cleanHash;
+  }
+
+  // Validate the hash format (should be 0x + 64 hex characters)
+  if (cleanHash.length !== 66) {
+    throw new Error(
+      `Invalid hash format. Expected 66 characters (0x + 64 hex), got ${cleanHash.length}: ${cleanHash}`
+    );
+  }
+
+  // Validate it's a valid hex string
+  if (!/^0x[0-9a-fA-F]{64}$/.test(cleanHash)) {
+    throw new Error(`Invalid hex format: ${cleanHash}`);
+  }
+
+  return cleanHash;
 }
 
 function decodeCustomError(errorData: string) {
@@ -51,6 +75,27 @@ function decodeCustomError(errorData: string) {
   return (
     errorSelectors[selector as keyof typeof errorSelectors] || "UnknownError"
   );
+}
+
+async function generateContentHash(file: File): Promise<string> {
+  try {
+    // Read the file as ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+
+    // Generate SHA-256 hash from the file content
+    const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    // Convert to keccak256 hash for smart contract compatibility
+    const keccakHash = ethers.keccak256("0x" + hashHex);
+    return keccakHash;
+  } catch (error) {
+    console.error("Error generating content hash:", error);
+    throw new Error("Failed to generate content hash from file object");
+  }
 }
 
 async function unpinFromPinata(cid: string) {
@@ -124,6 +169,21 @@ export default function TagPage() {
   const [isDeregistering, setIsDeregistering] = useState(false);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [isFilesDropdownOpen, setIsFilesDropdownOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [loadingModal, setLoadingModal] = useState({
+    isVisible: false,
+    title: "",
+    subtitle: "",
+    steps: [] as { text: string; completed: boolean }[],
+    progress: 0,
+  });
+  const [confirmationModal, setConfirmationModal] = useState({
+    isVisible: false,
+    type: "delete" as "delete" | "download",
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   useEffect(() => {
     const getAddress = async () => {
@@ -203,62 +263,53 @@ export default function TagPage() {
     fetchMetadata();
   }, [tag]);
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (!tag?.primary_media_url) {
       toast.error("No media file found to download.");
       return;
     }
 
-    const toastId = toast.loading("Preparing download...");
+    setIsDownloading(true);
+    setLoadingModal({
+      isVisible: true,
+      title: "Preparing Download",
+      subtitle: "Applying watermark and registering media...",
+      steps: [
+        { text: "Applying watermark to media", completed: false },
+        { text: "Generating content hash", completed: false },
+        { text: "Checking blockchain registration", completed: false },
+        { text: "Registering media if needed", completed: false },
+        { text: "Preparing download", completed: false },
+      ],
+      progress: 0,
+    });
+
+    performDownload();
+  };
+
+  const performDownload = async () => {
+    if (!tag?.primary_media_url) {
+      toast.error("No media file found to download.");
+      return;
+    }
 
     try {
-      if (tag.type === "img") {
-        const img = new window.Image();
-        img.crossOrigin = "anonymous";
-        img.src = tag.primary_media_url;
-
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-        });
-
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0);
-
-        const fontSize = Math.floor(canvas.width / 15);
-        ctx.font = `bold ${fontSize}px Arial`;
-        ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-        ctx.textAlign = "center";
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate(-Math.PI / 4);
-        ctx.fillText("VERAFIED", 0, 0);
-
-        const blob = await new Promise<Blob | null>((resolve) =>
-          canvas.toBlob(resolve, "image/png")
-        );
-        if (!blob) throw new Error("Could not create image blob");
-
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${tag.file_name.replace(/\.[^/.]+$/, "")}_verafied.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-
-        toast.success("Download started!", { id: toastId });
-      } else if (tag.type === "video") {
-        toast.loading("Applying watermark...", { id: toastId });
+      // Check if media type should be watermarked (video or image)
+      if (tag.type === "video" || tag.type === "img") {
+        // Step 1: Apply watermark first
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 20,
+          steps: prev.steps.map((step, index) =>
+            index === 0 ? { ...step, completed: true } : step
+          ),
+        }));
 
         const payload = {
-          videoUrl: tag.primary_media_url,
-          watermarkUrl: WATERMARK_URL,
+          mediaUrl: tag.primary_media_url,
+          watermarkUrl: NEXT_PUBLIC_WATERMARK_URL,
+          mediaType: tag.type,
         };
-        console.log(payload);
 
         const watermarkResponse = await fetch(
           `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tags/watermark`,
@@ -283,6 +334,148 @@ export default function TagPage() {
           throw new Error("Backend did not return a watermarked URL.");
         }
 
+        // Step 2: Generate content hash from watermarked file
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 40,
+          steps: prev.steps.map((step, index) =>
+            index === 1 ? { ...step, completed: true } : step
+          ),
+        }));
+
+        // Fetch the watermarked file and create File object
+        const watermarkedResponse = await fetch(watermarkedUrl);
+        if (!watermarkedResponse.ok) {
+          throw new Error("Failed to fetch watermarked file");
+        }
+
+        const watermarkedBlob = await watermarkedResponse.blob();
+        const watermarkedFile = new File(
+          [watermarkedBlob],
+          `watermarked_${tag.file_name}`,
+          {
+            type: watermarkedBlob.type,
+          }
+        );
+
+        const keccakHash = await generateContentHash(watermarkedFile);
+
+        console.log("Generated hash from watermarked file:", keccakHash);
+
+        // Step 3: Check smart contract for original media presence
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 60,
+          steps: prev.steps.map((step, index) =>
+            index === 2 ? { ...step, completed: true } : step
+          ),
+        }));
+
+        if (typeof window.ethereum === "undefined") {
+          throw new Error(
+            "MetaMask is not installed. Please install MetaMask to download watermarked media."
+          );
+        }
+
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const contract = getEthersContract(signer);
+
+        // Check if original media is already registered
+        let isOriginalMediaRegistered = false;
+        try {
+          const existingMedia = await contract.getMedia(keccakHash);
+          isOriginalMediaRegistered = existingMedia.mediaCid !== "";
+          console.log(
+            "Original media registration status:",
+            isOriginalMediaRegistered
+          );
+        } catch (error) {
+          // Media not found, which means it's not registered
+          isOriginalMediaRegistered = false;
+          console.log("Original media not found in contract:", error);
+        }
+
+        // Step 4: Register original media if not present
+        if (!isOriginalMediaRegistered) {
+          setLoadingModal((prev) => ({
+            ...prev,
+            progress: 80,
+            steps: prev.steps.map((step, index) =>
+              index === 3 ? { ...step, completed: true } : step
+            ),
+          }));
+
+          // Generate dummy data for original media registration
+          const originalMediaCid = "QmOriginalMediaCid" + Date.now();
+          const originalMetadataCid = "QmOriginalMetadataCid" + Date.now();
+
+          console.log("Registering original media with:", {
+            mediaCid: originalMediaCid,
+            metadataCid: originalMetadataCid,
+            contentHash: keccakHash,
+          });
+
+          try {
+            const tx = await contract.registerMedia(
+              originalMediaCid,
+              originalMetadataCid,
+              keccakHash
+            );
+
+            console.log("Registration transaction:", tx.hash);
+            await tx.wait();
+
+            console.log("Original media successfully registered to blockchain");
+          } catch (registrationError: any) {
+            console.error("Registration error:", registrationError);
+
+            // Check if it's a duplicate registration error
+            if (
+              registrationError.message?.includes("MediaAlreadyRegistered") ||
+              registrationError.message?.includes("already registered") ||
+              registrationError.message?.includes("MediaAlreadyRegistered")
+            ) {
+              console.log(
+                "Media was already registered by another transaction, continuing..."
+              );
+              setLoadingModal((prev) => ({
+                ...prev,
+                progress: 80,
+                steps: prev.steps.map((step, index) =>
+                  index === 3 ? { ...step, completed: true } : step
+                ),
+              }));
+            } else {
+              console.error(
+                "Unexpected registration error:",
+                registrationError
+              );
+              throw registrationError;
+            }
+          }
+        } else {
+          setLoadingModal((prev) => ({
+            ...prev,
+            progress: 80,
+            steps: prev.steps.map((step, index) =>
+              index === 3 ? { ...step, completed: true } : step
+            ),
+          }));
+          console.log(
+            "Original media already registered, proceeding to download"
+          );
+        }
+
+        // Step 5: Download the watermarked media
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 100,
+          steps: prev.steps.map((step, index) =>
+            index === 4 ? { ...step, completed: true } : step
+          ),
+        }));
+
         const a = document.createElement("a");
         a.href = watermarkedUrl;
         a.download = `watermarked_${tag.file_name}`;
@@ -290,8 +483,20 @@ export default function TagPage() {
         a.click();
         document.body.removeChild(a);
 
-        toast.success("Watermarked video download started!", { id: toastId });
+        // Close loading modal after brief delay
+        setTimeout(() => {
+          setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+        }, 1000);
       } else {
+        // For audio files, download without watermarking
+        setLoadingModal((prev) => ({
+          ...prev,
+          progress: 100,
+          steps: prev.steps.map((step, index) =>
+            index === 4 ? { ...step, completed: true } : step
+          ),
+        }));
+
         const response = await fetch(tag.primary_media_url);
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -302,11 +507,18 @@ export default function TagPage() {
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
-        toast.success("Download started!", { id: toastId });
+
+        // Close loading modal after brief delay
+        setTimeout(() => {
+          setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+        }, 1000);
       }
     } catch (err: any) {
       console.error("Download/Watermark error:", err);
-      toast.error(err.message || "An error occurred.", { id: toastId });
+      setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+      toast.error(err.message || "An error occurred during download.");
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -336,24 +548,78 @@ export default function TagPage() {
     }
   };
 
-  const handleDeregister = async () => {
-    if (!tag || !currentUserAddress)
-      return toast.error("Cannot perform action. Data is missing.");
-    if (currentUserAddress.toLowerCase() !== tag.address.toLowerCase())
-      return toast.error("You are not authorized to deregister this media.");
-    if (typeof window.ethereum === "undefined")
-      return toast.error("MetaMask is not installed.");
+  const handleDeregister = () => {
+    if (!tag || !currentUserAddress) {
+      toast.error("Cannot perform action. Data is missing.");
+      return;
+    }
+    if (currentUserAddress.toLowerCase() !== tag.address.toLowerCase()) {
+      toast.error("You are not authorized to deregister this media.");
+      return;
+    }
+    if (typeof window.ethereum === "undefined") {
+      toast.error("MetaMask is not installed.");
+      return;
+    }
+
+    setConfirmationModal({
+      isVisible: true,
+      type: "delete",
+      title: "Delete Media",
+      message: `Are you sure you want to permanently delete "${tag.file_name}"? This action cannot be undone and will remove the media from the blockchain and all storage systems.`,
+      onConfirm: () => {
+        setConfirmationModal((prev) => ({ ...prev, isVisible: false }));
+        performDeregister();
+      },
+    });
+  };
+
+  const performDeregister = async () => {
+    if (!tag || !currentUserAddress) {
+      toast.error("Cannot perform action. Data is missing.");
+      return;
+    }
 
     setIsDeregistering(true);
-    const toastId = toast.loading("Deregistering media...");
+    setLoadingModal({
+      isVisible: true,
+      title: "Deleting Media",
+      subtitle: "Removing media from blockchain and storage...",
+      steps: [
+        { text: "Checking media status on blockchain", completed: false },
+        { text: "Awaiting blockchain transaction", completed: false },
+        { text: "Unpinning files from IPFS", completed: false },
+        { text: "Deleting from database", completed: false },
+        { text: "Deletion complete", completed: false },
+      ],
+      progress: 0,
+    });
 
     try {
+      if (typeof window.ethereum === "undefined") {
+        throw new Error("MetaMask is not installed.");
+      }
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = getEthersContract(signer);
-      const formattedHash = "0x" + tag.hash_address;
 
-      toast.loading("Checking media status on blockchain...", { id: toastId });
+      // Format and validate hash
+      let formattedHash: string;
+      try {
+        formattedHash = formatHashForContract(tag.hash_address);
+        console.log("Using hash for deregistration:", formattedHash);
+      } catch (hashError: any) {
+        console.error("Hash formatting error:", hashError);
+        throw new Error(`Invalid media hash format: ${hashError.message}`);
+      }
+
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 20,
+        steps: prev.steps.map((step, index) =>
+          index === 0 ? { ...step, completed: true } : step
+        ),
+      }));
       try {
         const mediaData = await contract.getMedia(formattedHash);
         if (
@@ -369,7 +635,13 @@ export default function TagPage() {
         throw new Error("Failed to verify media status on blockchain.");
       }
 
-      toast.loading("Awaiting on-chain transaction...", { id: toastId });
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 40,
+        steps: prev.steps.map((step, index) =>
+          index === 1 ? { ...step, completed: true } : step
+        ),
+      }));
 
       try {
         await contract.deregisterMedia.estimateGas(formattedHash);
@@ -400,13 +672,26 @@ export default function TagPage() {
       );
       await tx.wait();
 
-      toast.loading("Unpinning files from IPFS...", { id: toastId });
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 60,
+        steps: prev.steps.map((step, index) =>
+          index === 2 ? { ...step, completed: true } : step
+        ),
+      }));
       await Promise.all([
-        unpinFromPinata(tag.mediacid),
-        unpinFromPinata(tag.metadatacid),
+        unpinFromPinata(tag!.mediacid),
+        unpinFromPinata(tag!.metadatacid),
       ]);
 
-      toast.loading("Deleting from database...", { id: toastId });
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 80,
+        steps: prev.steps.map((step, index) =>
+          index === 3 ? { ...step, completed: true } : step
+        ),
+      }));
+
       const deleteResponse = await fetch(API_ENDPOINTS.TAG_BY_ID(id), {
         method: "DELETE",
       });
@@ -422,10 +707,19 @@ export default function TagPage() {
         throw new Error(errorData.message || "Failed to delete from database.");
       }
 
-      toast.success("Media successfully deregistered from all systems.", {
-        id: toastId,
-      });
-      router.push("/");
+      setLoadingModal((prev) => ({
+        ...prev,
+        progress: 100,
+        steps: prev.steps.map((step, index) =>
+          index === 4 ? { ...step, completed: true } : step
+        ),
+      }));
+
+      // Close loading modal after brief delay and redirect
+      setTimeout(() => {
+        setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+        router.push("/");
+      }, 1000);
     } catch (err: any) {
       console.error("Deregister error:", err);
 
@@ -452,7 +746,8 @@ export default function TagPage() {
         }
       }
 
-      toast.error(errorMessage, { id: toastId });
+      setLoadingModal((prev) => ({ ...prev, isVisible: false }));
+      toast.error(errorMessage);
     } finally {
       setIsDeregistering(false);
     }
@@ -487,10 +782,32 @@ export default function TagPage() {
     currentUserAddress &&
     tag &&
     currentUserAddress.toLowerCase() === tag.address.toLowerCase();
-  const isProcessing = isDeregistering;
+  const isProcessing = isDeregistering || isDownloading;
+
+  const handleCancelModal = () => {
+    setConfirmationModal((prev) => ({ ...prev, isVisible: false }));
+  };
 
   return (
     <main className="min-h-screen bg-[#1A1A1A] text-white">
+      <LoadingModal
+        isVisible={loadingModal.isVisible}
+        title={loadingModal.title}
+        subtitle={loadingModal.subtitle}
+        steps={loadingModal.steps}
+        progress={loadingModal.progress}
+        showSecurityNote={true}
+      />
+      <ConfirmationModal
+        isVisible={confirmationModal.isVisible}
+        type={confirmationModal.type}
+        title={confirmationModal.title}
+        message={confirmationModal.message}
+        onConfirm={confirmationModal.onConfirm}
+        onCancel={handleCancelModal}
+        isLoading={isDeregistering}
+        loadingText={isDeregistering ? "Deleting media..." : "Processing..."}
+      />
       <div className="max-w-7xl mx-auto p-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
           <div className="relative">
