@@ -629,11 +629,15 @@ export default function CreateTagPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={!isVerified || isProcessing}
+                  disabled={!isVerified || isProcessing || !!preparedData}
                   className="w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 disabled:cursor-not-allowed bg-gray-700 text-white hover:bg-gray-800 disabled:bg-gray-600"
                 >
                   <ShieldAlert className="w-5 h-5 mr-2" />
-                  {isDetecting ? "Analyzing..." : "2. Detect Deepfake"}
+                  {isDetecting
+                    ? "Analyzing..."
+                    : preparedData
+                    ? "Analysis Complete"
+                    : "2. Detect Deepfake"}
                 </button>
               </div>
             </form>
