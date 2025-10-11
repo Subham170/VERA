@@ -1,6 +1,5 @@
 "use client";
 
-// Extend Window interface to include ethereum
 declare global {
   interface Window {
     ethereum?: {
@@ -65,6 +64,8 @@ export default function LoginPage() {
         `${API_ENDPOINTS.USERS}/${connectedAddress}`
       );
 
+      console.log("qweryiop",response);
+
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error("User not found. Please sign up first.");
@@ -77,13 +78,16 @@ export default function LoginPage() {
         throw new Error("Address does not match the connected wallet address.");
       }
 
-      // Extract user data from the API response and pass to login function
+      if(userData.data.user.username === username){
+        throw new Error("Username does not match the connected wallet address.");
+      }
+
       const user = {
         address: userData.data.user.address,
         username: userData.data.user.username,
         email: userData.data.user.email,
       };
-      
+
       login(user);
       toast.success("Login successful! Redirecting...", { id: toastId });
 

@@ -1,25 +1,97 @@
-import axios from 'axios';
-import fs from 'fs';
+import cors from "cors";
+import dotenv from "dotenv";
+import express from "express";
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
+import morgan from "morgan";
 
-async function sendFile() {
-  const raw = fs.readFileSync('fake.png');            // or a video file
-  const base64 = raw.toString('base64');
+import { detectionRoutes } from "./detection/index.js";
 
-  const body = {
-    doc_base64: base64,
-    req_id: 'req-' + Date.now(),
-    isIOS: false,
-    doc_type: 'image',
-    orientation: 1
-  };
+dotenv.config();
 
-  const resp = await axios.post(
-    'https://ping.arya.ai/api/v1/deepfake-detection/image',
-    body,
-    { headers: { token: 'c927f89af2643ec3f225e1e04bd3a91e', 'Content-Type': 'application/json' } }
-  );
+import connectDB from "./config/database.js";
+import tagRoutes from "./tag/routes.js";
+import userRoutes from "./user/routes.js";
+import watermarkRouters from "./watermark/routes.js";
 
-  // console.log(resp.data);
+// Connect to MongoDB
+connectDB();
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Security middleware
+app.use(helmet());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: "Too many requests from this IP, please try again later.",
+});
+app.use(limiter);
+
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3000", // for local development
+      "https://vera-seven.vercel.app", // for production
+    ],
+    credentials: true,
+  })
+);
+// Body parsing middleware
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Logging middleware
+if (process.env.NODE_ENV === "development") {
+  app.use(morgan("dev"));
 }
 
-sendFile().catch(console.error);
+// Environment validation is now handled in the detection module
+
+// API routes
+app.use("/api/users", userRoutes);
+app.use("/api/tags", tagRoutes);
+app.use("/api", detectionRoutes);
+app.use("/watermark", watermarkRouters);
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "success",
+    message: "Server is running",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/", (req, res) => {
+  res.send("Hello");
+});
+// 404 handler
+app.use("*", (req, res) => {
+  res.status(404).json({
+    status: "error",
+    message: "Route not found",
+  });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.status || 500).json({
+    status: "error",
+    message:
+      process.env.NODE_ENV === "development"
+        ? err.message
+        : "Something went wrong!",
+  });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+});
+
+export default app;
