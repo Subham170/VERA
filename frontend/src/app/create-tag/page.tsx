@@ -274,12 +274,22 @@ export default function CreateTagPage() {
       }));
 
       try {
-        await contract.getMedia(contentHash);
+        const mediaData = await contract.getMedia(contentHash);
+        // If we get here, the media exists (not an error)
+        console.log("Duplicate found:", mediaData);
         setLoadingModal((prev) => ({ ...prev, isVisible: false }));
         setIsMediaAlreadyVerified(true);
+        toast.error("This media has already been registered on the blockchain.");
         return;
       } catch (error: any) {
-        if (error.code !== "CALL_EXCEPTION" && error.code !== "BAD_DATA") {
+        console.log("Uniqueness check result:", error.message);
+        // Check if it's a "not found" error (which means unique)
+        if (error.code === "CALL_EXCEPTION" || 
+            error.code === "BAD_DATA" || 
+            error.message?.includes("MediaNotFound") ||
+            error.message?.includes("execution reverted")) {
+          // File is unique, continue
+        } else {
           throw error;
         }
 
@@ -358,15 +368,25 @@ export default function CreateTagPage() {
 
         try {
           const contentHash = await generateContentHash(currentFile);
+          console.log(`Checking uniqueness for ${currentFile.name} with hash: ${contentHash}`);
 
           try {
-            await contract.getMedia(contentHash);
+            const mediaData = await contract.getMedia(contentHash);
+            // If we get here, the media exists (not an error)
+            console.log(`Duplicate found for ${currentFile.name}:`, mediaData);
             toast.error(`File "${currentFile.name}" has already been registered on the blockchain.`);
           } catch (error: any) {
-            if (error.code === "CALL_EXCEPTION" || error.code === "BAD_DATA") {
+            console.log(`Uniqueness check for ${currentFile.name}:`, error.message);
+            // Check if it's a "not found" error (which means unique)
+            if (error.code === "CALL_EXCEPTION" || 
+                error.code === "BAD_DATA" || 
+                error.message?.includes("MediaNotFound") ||
+                error.message?.includes("execution reverted")) {
               // File is unique, add to valid files
+              console.log(`File ${currentFile.name} is unique`);
               validFiles.push(currentFile);
             } else {
+              console.error(`Unexpected error checking ${currentFile.name}:`, error);
               throw error;
             }
           }

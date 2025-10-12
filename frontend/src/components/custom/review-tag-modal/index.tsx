@@ -469,7 +469,16 @@ export default function ReviewTagModal({
         
         if (!backendRes.ok) {
           const errorData = await backendRes.json();
-          throw new Error(errorData.message || "Failed to save bulk upload to database.");
+          console.error("Backend error:", errorData);
+          
+          // Handle specific error cases
+          if (errorData.message?.includes("already exists")) {
+            throw new Error("One or more files have already been registered. Please check uniqueness again.");
+          } else if (errorData.message?.includes("duplicate")) {
+            throw new Error("Duplicate content detected. Please verify uniqueness before proceeding.");
+          } else {
+            throw new Error(errorData.message || "Failed to save bulk upload to database.");
+          }
         }
         
         setLoadingModal((prev) => ({
@@ -480,7 +489,7 @@ export default function ReviewTagModal({
 
         // Register on blockchain
         const contract = getEthersContract(signer);
-        const formattedHash = "0x" + contentHash;
+        const formattedHash = contentHash.startsWith("0x") ? contentHash : "0x" + contentHash;
         
         const tx: TransactionResponse = await contract.registerMedia(
           mediaCids.join(","), // Comma-separated CIDs
@@ -508,10 +517,26 @@ export default function ReviewTagModal({
 
       } catch (err) {
         console.error("Bulk registration error:", err);
-        const error = err as { reason?: string; message?: string };
-        toast.error(
-          error.reason || error.message || "An unexpected error occurred during bulk registration."
-        );
+        const error = err as { reason?: string; message?: string; code?: string };
+        
+        // Handle specific error types
+        let errorMessage = "An unexpected error occurred during bulk registration.";
+        
+        if (error.message?.includes("already been registered")) {
+          errorMessage = "One or more files have already been registered. Please verify uniqueness again.";
+        } else if (error.message?.includes("duplicate")) {
+          errorMessage = "Duplicate content detected. Please check uniqueness before proceeding.";
+        } else if (error.message?.includes("insufficient funds")) {
+          errorMessage = "Insufficient funds for transaction. Please add more ETH to your wallet.";
+        } else if (error.message?.includes("user rejected")) {
+          errorMessage = "Transaction was rejected. Please try again.";
+        } else if (error.reason) {
+          errorMessage = error.reason;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        toast.error(errorMessage);
         setLoadingModal((prev) => ({ ...prev, isVisible: false }));
       } finally {
         setIsRegistering(false);
