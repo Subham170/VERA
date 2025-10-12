@@ -11,6 +11,7 @@ import {
   NEXT_PUBLIC_PINATA_JWT,
   NEXT_PUBLIC_WATERMARK_URL,
 } from "@/lib/config";
+import CryptoJS from "crypto-js";
 import { ethers, type TransactionResponse } from "ethers";
 import {
   BadgeCheck,
@@ -24,7 +25,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Image from "next/image";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -87,34 +88,16 @@ function decodeCustomError(errorData: string) {
   );
 }
 
-function convertToHttps(url: string): string {
-  if (!url) return url;
-
-  // If the URL starts with http://, replace it with https://
-  if (url.startsWith("http://")) {
-    return url.replace("http://", "https://");
-  }
-
-  // If it doesn't start with http:// or https://, assume it needs https://
-  if (!url.startsWith("https://")) {
-    return `https://${url}`;
-  }
-
-  // Already https://, return as is
-  return url;
-}
-
 async function generateContentHash(file: File): Promise<string> {
   try {
     // Read the file as ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
 
-    // Generate SHA-256 hash from the file content
-    const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+    // Convert ArrayBuffer to WordArray for crypto-js
+    const wordArray = CryptoJS.lib.WordArray.create(arrayBuffer);
+
+    // Generate SHA-256 hash using crypto-js
+    const hashHex = CryptoJS.SHA256(wordArray).toString();
 
     // Convert to keccak256 hash for smart contract compatibility
     const keccakHash = ethers.keccak256("0x" + hashHex);
@@ -181,9 +164,11 @@ interface Metadata {
   }>;
 }
 
-export default function TagPage() {
-  const params = useParams<{ id: string }>();
-  const id = params?.id as string;
+interface TagPageClientProps {
+  id: string;
+}
+
+export default function TagPageClient({ id }: TagPageClientProps) {
   const router = useRouter();
   const [tag, setTag] = useState<Tag | null>(null);
   const [metadata, setMetadata] = useState<Metadata | null>(null);
@@ -241,7 +226,9 @@ export default function TagPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(API_ENDPOINTS.TAG_BY_ID(id));
+        const response = await fetch(
+          `https://13.60.248.212:8443/api/tags/${id}`
+        );
         if (!response.ok) throw new Error("Failed to fetch the tag data.");
         const result = await response.json();
         if (result.status !== "success" || !result.data.tag)
@@ -299,23 +286,6 @@ export default function TagPage() {
       return;
     }
 
-    // Get the appropriate URL based on whether it's a bulk upload or single file
-    let downloadUrl: string;
-    if (tag.is_bulk_upload && metadata?.files) {
-      // For bulk uploads, use the cloudinaryUrl from the current file's metadata
-      const currentFile = metadata.files[currentMediaIndex];
-      if (!currentFile?.cloudinaryUrl) {
-        toast.error("No media file found to download.");
-        return;
-      }
-      downloadUrl = currentFile.cloudinaryUrl;
-      console.log("Download URL:", downloadUrl);
-    } else {
-      // For single files, use the primary_media_url
-      downloadUrl = tag.primary_media_url;
-      console.log("Download URL:", downloadUrl);
-    }
-
     setIsDownloading(true);
     setLoadingModal({
       isVisible: true,
@@ -332,11 +302,11 @@ export default function TagPage() {
       iconType: "download",
     });
 
-    performDownload(downloadUrl);
+    performDownload();
   };
 
-  const performDownload = async (downloadUrl: string) => {
-    if (!downloadUrl || !tag) {
+  const performDownload = async () => {
+    if (!tag?.primary_media_url) {
       toast.error("No media file found to download.");
       return;
     }
@@ -354,7 +324,7 @@ export default function TagPage() {
         }));
 
         const payload = {
-          mediaUrl: downloadUrl,
+          mediaUrl: tag.primary_media_url,
           watermarkUrl: NEXT_PUBLIC_WATERMARK_URL,
           mediaType: tag.type,
         };
@@ -392,8 +362,7 @@ export default function TagPage() {
         }));
 
         // Fetch the watermarked file and create File object
-        console.log("Fetching watermarked file:", watermarkedUrl);
-        const watermarkedResponse = await fetch(convertToHttps(watermarkedUrl));
+        const watermarkedResponse = await fetch(watermarkedUrl);
         if (!watermarkedResponse.ok) {
           throw new Error("Failed to fetch watermarked file");
         }
@@ -526,7 +495,7 @@ export default function TagPage() {
         }));
 
         const a = document.createElement("a");
-        a.href = convertToHttps(watermarkedUrl);
+        a.href = watermarkedUrl;
         a.download = `watermarked_${tag.file_name}`;
         document.body.appendChild(a);
         a.click();
@@ -546,7 +515,7 @@ export default function TagPage() {
           ),
         }));
 
-        const response = await fetch(downloadUrl);
+        const response = await fetch(tag.primary_media_url);
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
