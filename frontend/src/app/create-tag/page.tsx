@@ -9,8 +9,6 @@ import {
   ArrowRight,
   Check,
   CheckCircle,
-  ChevronLeft,
-  ChevronRight,
   SearchCheck,
   ShieldAlert,
   UploadCloud,
@@ -156,18 +154,22 @@ export default function CreateTagPage() {
 
   const processBulkFiles = (selectedFiles: File[]) => {
     // Validate file types
-    const validTypes = ['image/', 'video/', 'audio/'];
-    const validFiles = selectedFiles.filter(file => 
-      validTypes.some(type => file.type.startsWith(type))
+    const validTypes = ["image/", "video/", "audio/"];
+    const validFiles = selectedFiles.filter((file) =>
+      validTypes.some((type) => file.type.startsWith(type))
     );
 
     if (validFiles.length === 0) {
-      toast.error('Please select valid image, video, or audio files.');
+      toast.error("Please select valid image, video, or audio files.");
       return;
     }
 
     if (validFiles.length !== selectedFiles.length) {
-      toast.error(`${selectedFiles.length - validFiles.length} invalid files were skipped.`);
+      toast.error(
+        `${
+          selectedFiles.length - validFiles.length
+        } invalid files were skipped.`
+      );
     }
 
     setBulkFiles(validFiles);
@@ -279,15 +281,19 @@ export default function CreateTagPage() {
         console.log("Duplicate found:", mediaData);
         setLoadingModal((prev) => ({ ...prev, isVisible: false }));
         setIsMediaAlreadyVerified(true);
-        toast.error("This media has already been registered on the blockchain.");
+        toast.error(
+          "This media has already been registered on the blockchain."
+        );
         return;
       } catch (error: any) {
         console.log("Uniqueness check result:", error.message);
         // Check if it's a "not found" error (which means unique)
-        if (error.code === "CALL_EXCEPTION" || 
-            error.code === "BAD_DATA" || 
-            error.message?.includes("MediaNotFound") ||
-            error.message?.includes("execution reverted")) {
+        if (
+          error.code === "CALL_EXCEPTION" ||
+          error.code === "BAD_DATA" ||
+          error.message?.includes("MediaNotFound") ||
+          error.message?.includes("execution reverted")
+        ) {
           // File is unique, continue
         } else {
           throw error;
@@ -321,7 +327,8 @@ export default function CreateTagPage() {
   };
 
   const handleBulkVerifyOnChain = async () => {
-    if (bulkFiles.length === 0) return toast.error("Please select files first.");
+    if (bulkFiles.length === 0)
+      return toast.error("Please select files first.");
     if (typeof window.ethereum === "undefined")
       return toast.error("MetaMask is not installed.");
 
@@ -350,43 +357,59 @@ export default function CreateTagPage() {
 
       for (let i = 0; i < bulkFiles.length; i++) {
         const currentFile = bulkFiles[i];
-        
+
         // Update progress
         const progress = ((i + 1) / bulkFiles.length) * 100;
         setLoadingModal((prev) => ({
           ...prev,
           progress: progress,
-          subtitle: `Checking file ${i + 1} of ${bulkFiles.length}: ${currentFile.name}`,
+          subtitle: `Checking file ${i + 1} of ${bulkFiles.length}: ${
+            currentFile.name
+          }`,
           steps: prev.steps.map((step, index) => {
             if (index === 0 && i === 0) return { ...step, completed: true };
             if (index === 1 && i === 0) return { ...step, completed: true };
-            if (index === 2 && i < bulkFiles.length) return { ...step, completed: true };
-            if (index === 3 && i === bulkFiles.length - 1) return { ...step, completed: true };
+            if (index === 2 && i < bulkFiles.length)
+              return { ...step, completed: true };
+            if (index === 3 && i === bulkFiles.length - 1)
+              return { ...step, completed: true };
             return step;
           }),
         }));
 
         try {
           const contentHash = await generateContentHash(currentFile);
-          console.log(`Checking uniqueness for ${currentFile.name} with hash: ${contentHash}`);
+          console.log(
+            `Checking uniqueness for ${currentFile.name} with hash: ${contentHash}`
+          );
 
           try {
             const mediaData = await contract.getMedia(contentHash);
             // If we get here, the media exists (not an error)
             console.log(`Duplicate found for ${currentFile.name}:`, mediaData);
-            toast.error(`File "${currentFile.name}" has already been registered on the blockchain.`);
+            toast.error(
+              `File "${currentFile.name}" has already been registered on the blockchain.`
+            );
           } catch (error: any) {
-            console.log(`Uniqueness check for ${currentFile.name}:`, error.message);
+            console.log(
+              `Uniqueness check for ${currentFile.name}:`,
+              error.message
+            );
             // Check if it's a "not found" error (which means unique)
-            if (error.code === "CALL_EXCEPTION" || 
-                error.code === "BAD_DATA" || 
-                error.message?.includes("MediaNotFound") ||
-                error.message?.includes("execution reverted")) {
+            if (
+              error.code === "CALL_EXCEPTION" ||
+              error.code === "BAD_DATA" ||
+              error.message?.includes("MediaNotFound") ||
+              error.message?.includes("execution reverted")
+            ) {
               // File is unique, add to valid files
               console.log(`File ${currentFile.name} is unique`);
               validFiles.push(currentFile);
             } else {
-              console.error(`Unexpected error checking ${currentFile.name}:`, error);
+              console.error(
+                `Unexpected error checking ${currentFile.name}:`,
+                error
+              );
               throw error;
             }
           }
@@ -398,15 +421,19 @@ export default function CreateTagPage() {
 
       // Update bulk files to only include valid ones
       setBulkFiles(validFiles);
-      
+
       if (validFiles.length === 0) {
-        toast.error("All files have already been registered on the blockchain.");
+        toast.error(
+          "All files have already been registered on the blockchain."
+        );
         setLoadingModal((prev) => ({ ...prev, isVisible: false }));
         return;
       }
 
       if (validFiles.length !== bulkFiles.length) {
-        toast.success(`${validFiles.length} out of ${bulkFiles.length} files are unique and can proceed.`);
+        toast.success(
+          `${validFiles.length} out of ${bulkFiles.length} files are unique and can proceed.`
+        );
       } else {
         toast.success("All files are unique. You can now detect deepfakes.");
       }
@@ -417,7 +444,6 @@ export default function CreateTagPage() {
       setTimeout(() => {
         setLoadingModal((prev) => ({ ...prev, isVisible: false }));
       }, 1000);
-
     } catch (err: any) {
       toast.error(
         err.message || "An unexpected error occurred during verification."
@@ -429,9 +455,11 @@ export default function CreateTagPage() {
   };
 
   const handleBulkAnalysis = async () => {
-    if (bulkFiles.length === 0) return toast.error("Please select files to analyze.");
-    if (!isVerified) return toast.error("Please verify the files' uniqueness on-chain first.");
-    
+    if (bulkFiles.length === 0)
+      return toast.error("Please select files to analyze.");
+    if (!isVerified)
+      return toast.error("Please verify the files' uniqueness on-chain first.");
+
     setIsDetecting(true);
     setBulkResults([]);
     setBulkProcessingIndex(0);
@@ -455,22 +483,27 @@ export default function CreateTagPage() {
 
     try {
       const results: PreparedData[] = [];
-      
+
       for (let i = 0; i < bulkFiles.length; i++) {
         const currentFile = bulkFiles[i];
         setBulkProcessingIndex(i);
-        
+
         // Update progress
         const progress = ((i + 1) / bulkFiles.length) * 100;
         setLoadingModal((prev) => ({
           ...prev,
           progress: progress,
-          subtitle: `Processing file ${i + 1} of ${bulkFiles.length}: ${currentFile.name}`,
+          subtitle: `Processing file ${i + 1} of ${bulkFiles.length}: ${
+            currentFile.name
+          }`,
           steps: prev.steps.map((step, index) => {
             if (index === 0 && i === 0) return { ...step, completed: true };
-            if (index === 1 && i < bulkFiles.length) return { ...step, completed: true };
-            if (index === 2 && i === bulkFiles.length - 1) return { ...step, completed: true };
-            if (index === 3 && i === bulkFiles.length - 1) return { ...step, completed: true };
+            if (index === 1 && i < bulkFiles.length)
+              return { ...step, completed: true };
+            if (index === 2 && i === bulkFiles.length - 1)
+              return { ...step, completed: true };
+            if (index === 3 && i === bulkFiles.length - 1)
+              return { ...step, completed: true };
             return step;
           }),
         }));
@@ -486,7 +519,9 @@ export default function CreateTagPage() {
 
           if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Detection failed for ${currentFile.name}: ${errorText}`);
+            throw new Error(
+              `Detection failed for ${currentFile.name}: ${errorText}`
+            );
           }
 
           const detectionResult: DetectionResult = await response.json();
@@ -512,38 +547,49 @@ export default function CreateTagPage() {
           results.push(tagDataPayload);
 
           // Check if file is fake using improved logic: deepfake_prob > natural_prob
-          const isFake = detectionResult.deepfake_probability > detectionResult.natural_probability;
-          
+          const isFake =
+            detectionResult.deepfake_probability >
+            detectionResult.natural_probability;
+
           if (isFake) {
-            toast.error(`Fake content detected in ${currentFile.name} (Deepfake: ${detectionResult.deepfake_probability}% vs Natural: ${detectionResult.natural_probability}%) - will be excluded from registration`);
+            toast.error(
+              `Fake content detected in ${currentFile.name} (Deepfake: ${detectionResult.deepfake_probability}% vs Natural: ${detectionResult.natural_probability}%) - will be excluded from registration`
+            );
           }
         } catch (error: any) {
           console.error(`Error processing ${currentFile.name}:`, error);
-          toast.error(`Failed to analyze ${currentFile.name}: ${error.message}`);
+          toast.error(
+            `Failed to analyze ${currentFile.name}: ${error.message}`
+          );
         }
       }
 
       setBulkResults(results);
       setCurrentBulkIndex(0);
-      
+
       // Filter natural images using improved logic: natural_prob > deepfake_prob
-      const naturalImages = results.filter(result => 
-        result.detectionResult.natural_probability > result.detectionResult.deepfake_probability
+      const naturalImages = results.filter(
+        (result) =>
+          result.detectionResult.natural_probability >
+          result.detectionResult.deepfake_probability
       );
-      
+
       if (results.length === 0) {
         toast.error("Failed to analyze any files. Please try again.");
       } else if (naturalImages.length === 0) {
-        toast.error("All files detected as potential deepfakes. Please try different files.");
+        toast.error(
+          "All files detected as potential deepfakes. Please try different files."
+        );
       } else {
-        toast.success(`Analysis complete! ${naturalImages.length} out of ${results.length} files are natural and will proceed to registration.`);
+        toast.success(
+          `Analysis complete! ${naturalImages.length} out of ${results.length} files are natural and will proceed to registration.`
+        );
       }
 
       // Close modal after brief delay
       setTimeout(() => {
         setLoadingModal((prev) => ({ ...prev, isVisible: false }));
       }, 1000);
-
     } catch (err: any) {
       console.error("Bulk analysis error:", err);
       toast.error(err.message || "Could not analyze the files.");
@@ -844,12 +890,12 @@ export default function CreateTagPage() {
                         }
                       }}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 ${
-                        isBulkMode ? 'bg-blue-600' : 'bg-gray-600'
+                        isBulkMode ? "bg-blue-600" : "bg-gray-600"
                       }`}
                     >
                       <span
                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          isBulkMode ? 'translate-x-6' : 'translate-x-1'
+                          isBulkMode ? "translate-x-6" : "translate-x-1"
                         }`}
                       />
                     </button>
@@ -890,7 +936,8 @@ export default function CreateTagPage() {
                   {isBulkMode ? (
                     bulkFiles.length > 0 ? (
                       <p className="mt-2 text-sm text-green-400">
-                        {bulkFiles.length} file{bulkFiles.length > 1 ? 's' : ''} selected
+                        {bulkFiles.length} file{bulkFiles.length > 1 ? "s" : ""}{" "}
+                        selected
                       </p>
                     ) : isDragOver ? (
                       <p className="mt-2 text-sm text-blue-400 font-medium">
@@ -901,20 +948,24 @@ export default function CreateTagPage() {
                         Click to browse or drag & drop multiple files here
                       </p>
                     )
+                  ) : file ? (
+                    <p
+                      className="mt-2 text-sm text-green-400 truncate max-w-full"
+                      title={file.name}
+                    >
+                      {file.name.length > 30
+                        ? file.name.substring(0, 30) + "..."
+                        : file.name}{" "}
+                      selected
+                    </p>
+                  ) : isDragOver ? (
+                    <p className="mt-2 text-sm text-blue-400 font-medium">
+                      Drop your file here
+                    </p>
                   ) : (
-                    file ? (
-                      <p className="mt-2 text-sm text-green-400">
-                        {file.name} selected
-                      </p>
-                    ) : isDragOver ? (
-                      <p className="mt-2 text-sm text-blue-400 font-medium">
-                        Drop your file here
-                      </p>
-                    ) : (
-                      <p className="mt-2 text-sm text-gray-400">
-                        Click to browse or drag & drop your file here
-                      </p>
-                    )
+                    <p className="mt-2 text-sm text-gray-400">
+                      Click to browse or drag & drop your file here
+                    </p>
                   )}
                 </div>
               </div>
@@ -930,7 +981,11 @@ export default function CreateTagPage() {
                   id="fileName"
                   value={fileName}
                   onChange={(e) => setFileName(e.target.value)}
-                  placeholder={isBulkMode ? "e.g., My Photo Collection" : "e.g., My Summer Vacation Video"}
+                  placeholder={
+                    isBulkMode
+                      ? "e.g., My Photo Collection"
+                      : "e.g., My Summer Vacation Video"
+                  }
                   className="w-full bg-[#3A3D45] border border-gray-600 text-white rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
@@ -957,7 +1012,9 @@ export default function CreateTagPage() {
                   <button
                     type="button"
                     onClick={handleBulkVerifyOnChain}
-                    disabled={bulkFiles.length === 0 || isProcessing || isVerified}
+                    disabled={
+                      bulkFiles.length === 0 || isProcessing || isVerified
+                    }
                     className="w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 disabled:cursor-not-allowed bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-600"
                   >
                     {isVerified ? (
@@ -1095,53 +1152,79 @@ export default function CreateTagPage() {
                       const compressedData = {
                         collectionName: fileName || "My Collection",
                         collectionDescription: description || "",
-                        files: bulkResults.map(result => ({
+                        files: bulkResults.map((result) => ({
                           name: result.name,
                           description: result.description,
                           mediaType: result.mediaType,
                           detectionResult: {
                             media_type: result.detectionResult.media_type,
-                            deepfake_probability: result.detectionResult.deepfake_probability,
-                            natural_probability: result.detectionResult.natural_probability,
+                            deepfake_probability:
+                              result.detectionResult.deepfake_probability,
+                            natural_probability:
+                              result.detectionResult.natural_probability,
                             reasoning: result.detectionResult.reasoning,
-                            cloudinary_url: result.detectionResult.cloudinary_url,
-                            cloudinary_public_id: result.detectionResult.cloudinary_public_id
-                          }
+                            cloudinary_url:
+                              result.detectionResult.cloudinary_url,
+                            cloudinary_public_id:
+                              result.detectionResult.cloudinary_public_id,
+                          },
                           // Removed filePreview to reduce size
-                        }))
+                        })),
                       };
-                      
+
                       try {
                         // Try to store in localStorage first
-                        localStorage.setItem("bulkUploadData", JSON.stringify(compressedData));
+                        localStorage.setItem(
+                          "bulkUploadData",
+                          JSON.stringify(compressedData)
+                        );
                         router.push("/review-tag");
                       } catch (error) {
                         // If localStorage fails due to quota, use sessionStorage
-                        console.warn("localStorage quota exceeded, using sessionStorage");
+                        console.warn(
+                          "localStorage quota exceeded, using sessionStorage"
+                        );
                         try {
-                          sessionStorage.setItem("bulkUploadData", JSON.stringify(compressedData));
+                          sessionStorage.setItem(
+                            "bulkUploadData",
+                            JSON.stringify(compressedData)
+                          );
                           router.push("/review-tag");
                         } catch (sessionError) {
                           // If both fail, show error and suggest reducing file count
-                          toast.error("Too many files to process at once. Please try with fewer files or smaller file sizes.");
-                          console.error("Both localStorage and sessionStorage quota exceeded:", sessionError);
+                          toast.error(
+                            "Too many files to process at once. Please try with fewer files or smaller file sizes."
+                          );
+                          console.error(
+                            "Both localStorage and sessionStorage quota exceeded:",
+                            sessionError
+                          );
                         }
                       }
                     } else {
-                      toast.error("No files analyzed. Please run analysis first.");
+                      toast.error(
+                        "No files analyzed. Please run analysis first."
+                      );
                     }
                   } else {
                     router.push("/review-tag");
                   }
                 }}
-                disabled={isBulkMode ? bulkResults.length === 0 : !preparedData || isProcessing}
+                disabled={
+                  isBulkMode
+                    ? bulkResults.length === 0
+                    : !preparedData || isProcessing
+                }
                 className={`w-full font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] ${
-                  (isBulkMode ? bulkResults.length === 0 : !preparedData) || isProcessing
+                  (isBulkMode ? bulkResults.length === 0 : !preparedData) ||
+                  isProcessing
                     ? "bg-gray-600 text-gray-400 cursor-not-allowed"
                     : "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl hover:shadow-green-500/25"
                 }`}
               >
-                <span>{isBulkMode ? "Review Analysis Results" : "Register on Chain"}</span>
+                <span>
+                  {isBulkMode ? "Review Analysis Results" : "Register on Chain"}
+                </span>
                 <ArrowRight className="w-5 h-5 ml-2" />
               </button>
             </div>

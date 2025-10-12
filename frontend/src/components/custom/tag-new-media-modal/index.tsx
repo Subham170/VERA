@@ -415,7 +415,10 @@ export default function TagNewMediaModal({
 
                       {/* File Info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">
+                        <p
+                          className="text-sm font-medium text-white truncate"
+                          title={file.name}
+                        >
                           {file.name}
                         </p>
                         <p className="text-xs text-gray-400">

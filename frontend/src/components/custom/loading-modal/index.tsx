@@ -81,7 +81,12 @@ export default function LoadingModal({
             <IconComponent className={`w-8 h-8 ${iconColor}`} />
           </div>
           <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
-          <p className="text-gray-300 text-sm">{subtitle}</p>
+          <p
+            className="text-gray-300 text-sm break-words overflow-hidden"
+            title={subtitle}
+          >
+            {subtitle}
+          </p>
         </div>
 
         {/* Steps */}
