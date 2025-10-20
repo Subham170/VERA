@@ -227,7 +227,7 @@ export default function TagPageClient({ id }: TagPageClientProps) {
       setError(null);
       try {
         const response = await fetch(
-          `https://13.60.248.212:8443/api/tags/${id}`
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tags/${id}`
         );
         if (!response.ok) throw new Error("Failed to fetch the tag data.");
         const result = await response.json();
