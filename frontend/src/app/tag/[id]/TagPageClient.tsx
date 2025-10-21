@@ -357,6 +357,8 @@ export default function TagPageClient({ id }: TagPageClientProps) {
           watermarkedUrl = watermarkedUrl.replace("http://", "https://");
         }
 
+        
+
         // Step 2: Generate content hash from watermarked file
         setLoadingModal((prev) => ({
           ...prev,
