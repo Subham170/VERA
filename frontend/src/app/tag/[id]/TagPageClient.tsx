@@ -346,10 +346,15 @@ export default function TagPageClient({ id }: TagPageClientProps) {
         }
 
         const result = await watermarkResponse.json();
-        const watermarkedUrl = result.data.watermarkedUrl;
+        let watermarkedUrl = result.data.watermarkedUrl;
 
         if (!watermarkedUrl) {
           throw new Error("Backend did not return a watermarked URL.");
+        }
+
+        // convert http to https by checking if the url starts with http:// and replacing it with https://
+        if (watermarkedUrl.startsWith("http://")) {
+          watermarkedUrl = watermarkedUrl.replace("http://", "https://");
         }
 
         // Step 2: Generate content hash from watermarked file
