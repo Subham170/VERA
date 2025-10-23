@@ -5,6 +5,7 @@ import LoadingModal from "@/components/custom/loading-modal";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/config";
 import { ethers } from "ethers";
+import { safeLocalStorageSet, safeLocalStorageGet } from "@/utils/storage";
 import {
   ArrowRight,
   Check,
@@ -526,34 +527,75 @@ export default function CreateTagPage() {
 
           const detectionResult: DetectionResult = await response.json();
 
-          const fileToDataUrl = (file: File): Promise<string> => {
+          const createOptimizedPreview = async (file: File): Promise<string> => {
             return new Promise((resolve, reject) => {
               const reader = new FileReader();
-              reader.onload = () => resolve(reader.result as string);
+              reader.onload = () => {
+                const result = reader.result as string;
+                // If the base64 is too large (>100KB), create a smaller thumbnail
+                if (result.length > 100000) {
+                  // For large files, create a smaller preview or use a placeholder
+                  const canvas = document.createElement('canvas');
+                  const ctx = canvas.getContext('2d');
+                  const img = new Image();
+                  
+                  img.onload = () => {
+                    // Resize to max 200x200 to reduce size
+                    const maxSize = 200;
+                    let { width, height } = img;
+                    
+                    if (width > height) {
+                      if (width > maxSize) {
+                        height = (height * maxSize) / width;
+                        width = maxSize;
+                      }
+                    } else {
+                      if (height > maxSize) {
+                        width = (width * maxSize) / height;
+                        height = maxSize;
+                      }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx?.drawImage(img, 0, 0, width, height);
+                    
+                    const compressedPreview = canvas.toDataURL('image/jpeg', 0.7);
+                    resolve(compressedPreview);
+                  };
+                  
+                  img.onerror = () => {
+                    // Fallback to a simple placeholder
+                    resolve('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk1lZGlhIFByZXZpZXc8L3RleHQ+PC9zdmc+');
+                  };
+                  
+                  img.src = result;
+                } else {
+                  resolve(result);
+                }
+              };
               reader.onerror = (error) => reject(error);
               reader.readAsDataURL(file);
             });
           };
 
-          const base64Preview = await fileToDataUrl(currentFile);
+          const optimizedPreview = await createOptimizedPreview(currentFile);
           const tagDataPayload: PreparedData = {
             name: currentFile.name,
             description: description || "",
             mediaType: currentFile.type.split("/")[0] || "image",
-            filePreview: base64Preview,
+            filePreview: optimizedPreview,
             detectionResult: detectionResult,
           };
 
           results.push(tagDataPayload);
 
-          // Check if file is fake using improved logic: deepfake_prob > natural_prob
-          const isFake =
-            detectionResult.deepfake_probability >
-            detectionResult.natural_probability;
+          // Check if file is fake using improved logic: deepfake_prob >= 50
+          const isFake = detectionResult.deepfake_probability >= 50;
 
           if (isFake) {
             toast.error(
-              `Fake content detected in ${currentFile.name} (Deepfake: ${detectionResult.deepfake_probability}% vs Natural: ${detectionResult.natural_probability}%) - will be excluded from registration`
+              `Fake content detected in ${currentFile.name} (Deepfake: ${detectionResult.deepfake_probability}% vs Original: ${detectionResult.natural_probability}%) - will be excluded from registration`
             );
           }
         } catch (error: any) {
@@ -567,11 +609,9 @@ export default function CreateTagPage() {
       setBulkResults(results);
       setCurrentBulkIndex(0);
 
-      // Filter natural images using improved logic: natural_prob > deepfake_prob
+      // Filter natural images using improved logic: deepfake_prob < 50
       const naturalImages = results.filter(
-        (result) =>
-          result.detectionResult.natural_probability >
-          result.detectionResult.deepfake_probability
+        (result) => result.detectionResult.deepfake_probability < 50
       );
 
       if (results.length === 0) {
@@ -582,7 +622,7 @@ export default function CreateTagPage() {
         );
       } else {
         toast.success(
-          `Analysis complete! ${naturalImages.length} out of ${results.length} files are natural and will proceed to registration.`
+          `Analysis complete! ${naturalImages.length} out of ${results.length} files are original and will proceed to registration.`
         );
       }
 
@@ -716,16 +756,77 @@ export default function CreateTagPage() {
         });
       };
 
-      const base64Preview = await fileToDataUrl(file);
+      // Create a smaller preview for storage (max 100KB)
+      const createOptimizedPreview = async (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // If the base64 is too large (>100KB), create a smaller thumbnail
+            if (result.length > 100000) {
+              // For large files, create a smaller preview or use a placeholder
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              const img = new Image();
+              
+              img.onload = () => {
+                // Resize to max 200x200 to reduce size
+                const maxSize = 200;
+                let { width, height } = img;
+                
+                if (width > height) {
+                  if (width > maxSize) {
+                    height = (height * maxSize) / width;
+                    width = maxSize;
+                  }
+                } else {
+                  if (height > maxSize) {
+                    width = (width * maxSize) / height;
+                    height = maxSize;
+                  }
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                ctx?.drawImage(img, 0, 0, width, height);
+                
+                const compressedPreview = canvas.toDataURL('image/jpeg', 0.7);
+                resolve(compressedPreview);
+              };
+              
+              img.onerror = () => {
+                // Fallback to a simple placeholder
+                resolve('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk1lZGlhIFByZXZpZXc8L3RleHQ+PC9zdmc+');
+              };
+              
+              img.src = result;
+            } else {
+              resolve(result);
+            }
+          };
+          reader.onerror = (error) => reject(error);
+          reader.readAsDataURL(file);
+        });
+      };
+
+      const optimizedPreview = await createOptimizedPreview(file);
       const tagDataPayload: PreparedData = {
         name: fileName,
         description: description || "",
         mediaType: file.type.split("/")[0] || "image",
-        filePreview: base64Preview,
+        filePreview: optimizedPreview,
         detectionResult: detectionResult,
       };
 
-      localStorage.setItem("uploadedTagData", JSON.stringify(tagDataPayload));
+      const storageSuccess = await safeLocalStorageSet("uploadedTagData", tagDataPayload, {
+        fallbackToSession: true,
+        compressData: true
+      });
+      
+      if (!storageSuccess) {
+        toast.error("Unable to save data. Please try with a smaller file or clear your browser storage.");
+        return;
+      }
       setPreparedData(tagDataPayload);
 
       // Step 4: Generate detailed report
@@ -1144,7 +1245,7 @@ export default function CreateTagPage() {
           {!isHighDeepfakeDetected && (
             <div className="max-w-2xl mx-auto mt-6">
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (isBulkMode) {
                     // Store ALL results (including deepfakes) for display on review page
                     if (bulkResults.length > 0) {
@@ -1172,34 +1273,15 @@ export default function CreateTagPage() {
                         })),
                       };
 
-                      try {
-                        // Try to store in localStorage first
-                        localStorage.setItem(
-                          "bulkUploadData",
-                          JSON.stringify(compressedData)
-                        );
+                      const storageSuccess = await safeLocalStorageSet("bulkUploadData", compressedData, {
+                        fallbackToSession: true,
+                        compressData: true
+                      });
+                      
+                      if (storageSuccess) {
                         router.push("/review-tag");
-                      } catch (error) {
-                        // If localStorage fails due to quota, use sessionStorage
-                        console.warn(
-                          "localStorage quota exceeded, using sessionStorage"
-                        );
-                        try {
-                          sessionStorage.setItem(
-                            "bulkUploadData",
-                            JSON.stringify(compressedData)
-                          );
-                          router.push("/review-tag");
-                        } catch (sessionError) {
-                          // If both fail, show error and suggest reducing file count
-                          toast.error(
-                            "Too many files to process at once. Please try with fewer files or smaller file sizes."
-                          );
-                          console.error(
-                            "Both localStorage and sessionStorage quota exceeded:",
-                            sessionError
-                          );
-                        }
+                      } else {
+                        toast.error("Storage quota exceeded. Please try with fewer files or clear your browser storage.");
                       }
                     } else {
                       toast.error(

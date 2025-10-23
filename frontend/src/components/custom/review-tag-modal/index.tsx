@@ -278,15 +278,13 @@ export default function ReviewTagModal({
       const bulkData = JSON.parse(bulkDataRaw);
       const naturalImages = bulkData.files
         ? bulkData.files.filter(
-            (item: any) =>
-              item.detectionResult.natural_probability >
-              item.detectionResult.deepfake_probability
+            (item: any) => item.detectionResult.deepfake_probability < 50
           )
         : [];
 
       if (naturalImages.length === 0) {
         return toast.error(
-          "No natural images to register. Please try different files."
+          "No original images to register. Please try different files."
         );
       }
 
@@ -295,8 +293,8 @@ export default function ReviewTagModal({
 
       setLoadingModal({
         isVisible: true,
-        title: "Registering Natural Images",
-        subtitle: `Processing ${naturalImages.length} natural images...`,
+        title: "Registering Original Images",
+        subtitle: `Processing ${naturalImages.length} original images...`,
         steps: [
           { text: "Connecting to Sepolia network", completed: false },
           { text: "Uploading files to IPFS", completed: false },
@@ -552,7 +550,7 @@ export default function ReviewTagModal({
         }));
 
         toast.success(
-          `Successfully registered ${naturalImages.length} natural images on-chain!`
+          `Successfully registered ${naturalImages.length} original images on-chain!`
         );
         localStorage.removeItem("bulkUploadData");
         sessionStorage.removeItem("bulkUploadData");
@@ -787,6 +785,22 @@ export default function ReviewTagModal({
     name?: string;
     mediaType?: string;
     filePreview?: string;
+    detectionResult?: {
+      media_type: string;
+      deepfake_probability: number;
+      natural_probability: number;
+      reasoning: {
+        content_analysis: string;
+        deepfake_indicators: string;
+        authentic_indicators: string;
+        overall: string;
+      };
+      raw_model_output: string;
+      sdk_raw: any;
+      provided_source: string;
+      cloudinary_url: string;
+      cloudinary_public_id: string;
+    };
   }>({});
 
   useEffect(() => {
@@ -827,7 +841,7 @@ export default function ReviewTagModal({
               {isBulkMode
                 ? `Review the analysis results for all ${
                     bulkData.files ? bulkData.files.length : 0
-                  } files. Only natural images will be uploaded to IPFS.`
+                  } files. Only original images will be uploaded to IPFS.`
                 : "Check out your media tag preview and continue once you're happy with it"}
             </p>
 
@@ -940,19 +954,15 @@ export default function ReviewTagModal({
                                 <div
                                   className={`absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium ${
                                     bulkData.files[currentBulkIndex]
-                                      .detectionResult.deepfake_probability >
-                                    bulkData.files[currentBulkIndex]
-                                      .detectionResult.natural_probability
+                                      .detectionResult.deepfake_probability >= 50
                                       ? "bg-red-500 text-white"
                                       : "bg-green-500 text-white"
                                   }`}
                                 >
                                   {bulkData.files[currentBulkIndex]
-                                    .detectionResult.deepfake_probability >
-                                  bulkData.files[currentBulkIndex]
-                                    .detectionResult.natural_probability
+                                    .detectionResult.deepfake_probability >= 50
                                     ? "FAKE"
-                                    : "NATURAL"}
+                                    : "ORIGINAL"}
                                 </div>
                               )}
                           </div>
@@ -972,17 +982,13 @@ export default function ReviewTagModal({
                                 <span
                                   className={`text-xs px-2 py-1 rounded ${
                                     bulkData.files[currentBulkIndex]
-                                      .detectionResult.deepfake_probability >
-                                    bulkData.files[currentBulkIndex]
-                                      .detectionResult.natural_probability
+                                      .detectionResult.deepfake_probability >= 50
                                       ? "bg-red-500/20 text-red-400"
                                       : "bg-green-500/20 text-green-400"
                                   }`}
                                 >
                                   {bulkData.files[currentBulkIndex]
-                                    .detectionResult.deepfake_probability >
-                                  bulkData.files[currentBulkIndex]
-                                    .detectionResult.natural_probability
+                                    .detectionResult.deepfake_probability >= 50
                                     ? "Will be excluded"
                                     : "Will proceed to IPFS"}
                                 </span>
@@ -994,14 +1000,12 @@ export default function ReviewTagModal({
                                     Deepfake:
                                   </span>
                                   <span
-                                    className={`text-sm font-medium ${
-                                      bulkData.files[currentBulkIndex]
-                                        .detectionResult.deepfake_probability >
-                                      bulkData.files[currentBulkIndex]
-                                        .detectionResult.natural_probability
-                                        ? "text-red-400"
-                                        : "text-green-400"
-                                    }`}
+                                  className={`text-sm font-medium ${
+                                    bulkData.files[currentBulkIndex]
+                                      .detectionResult.deepfake_probability >= 50
+                                      ? "text-red-400"
+                                      : "text-green-400"
+                                  }`}
                                   >
                                     {
                                       bulkData.files[currentBulkIndex]
@@ -1012,7 +1016,7 @@ export default function ReviewTagModal({
                                 </div>
                                 <div className="flex items-center space-x-2">
                                   <span className="text-sm text-gray-400">
-                                    Natural:
+                                    Original:
                                   </span>
                                   <span className="text-sm font-medium text-green-400">
                                     {
@@ -1039,8 +1043,13 @@ export default function ReviewTagModal({
                           )}
                       </div>
                     ) : (
-                      // Single upload preview
+                      // Single upload preview with analysis
                       <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-white font-semibold">
+                            Analysis Results
+                          </h3>
+                        </div>
                         <div className="relative">
                           <div className="w-full h-64 bg-gradient-to-br from-gray-600 to-gray-800 rounded-lg flex items-center justify-center relative overflow-hidden">
                             {tagData.filePreview ? (
@@ -1059,19 +1068,81 @@ export default function ReviewTagModal({
                                 </p>
                               </div>
                             )}
-                            <div className="absolute bottom-3 right-3 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                              <Check className="w-5 h-5 text-white" />
-                            </div>
+                            {/* Status indicator overlay */}
+                            {tagData.detectionResult && (
+                              <div
+                                className={`absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium ${
+                                  tagData.detectionResult.deepfake_probability >= 50
+                                    ? "bg-red-500 text-white"
+                                    : "bg-green-500 text-white"
+                                }`}
+                              >
+                                {tagData.detectionResult.deepfake_probability >= 50
+                                  ? "FAKE"
+                                  : "ORIGINAL"}
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <div className="space-y-2">
-                          <h3 className="text-white font-semibold truncate">
-                            {fileName}
-                          </h3>
-                          <p className="text-blue-400 text-sm">
-                            @{mediaType} media
-                          </p>
-                        </div>
+
+                        {/* Analysis details */}
+                        {tagData.detectionResult && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h3
+                                className="text-white font-semibold truncate max-w-[200px]"
+                                title={fileName}
+                              >
+                                {fileName}
+                              </h3>
+                              <span
+                                className={`text-xs px-2 py-1 rounded ${
+                                  tagData.detectionResult.deepfake_probability >= 50
+                                    ? "bg-red-500/20 text-red-400"
+                                    : "bg-green-500/20 text-green-400"
+                                }`}
+                              >
+                                {tagData.detectionResult.deepfake_probability >= 50
+                                  ? "Will be excluded"
+                                  : "Will proceed to IPFS"}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-gray-400">
+                                  Deepfake:
+                                </span>
+                                <span
+                                  className={`text-sm font-medium ${
+                                    tagData.detectionResult.deepfake_probability >= 50
+                                      ? "text-red-400"
+                                      : "text-green-400"
+                                  }`}
+                                >
+                                  {tagData.detectionResult.deepfake_probability}%
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-gray-400">
+                                  Original:
+                                </span>
+                                <span className="text-sm font-medium text-green-400">
+                                  {tagData.detectionResult.natural_probability}%
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="bg-[#2A2D35] p-3 rounded-lg">
+                              <h5 className="text-sm font-medium text-white mb-1">
+                                Analysis Summary
+                              </h5>
+                              <p className="text-sm text-gray-300">
+                                {tagData.detectionResult.reasoning.overall}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1190,14 +1261,13 @@ export default function ReviewTagModal({
                   </div>
                   <div>
                     <p className="text-blue-300 font-medium">
-                      Only natural images go further
+                      Only original images go further
                     </p>
                     <p className="text-blue-200/80 text-sm">
                       {
                         bulkData.files.filter(
                           (item) =>
-                            item.detectionResult.natural_probability >
-                            item.detectionResult.deepfake_probability
+                            item.detectionResult.deepfake_probability < 50
                         ).length
                       }{" "}
                       out of {bulkData.files.length} files will be uploaded to
@@ -1231,11 +1301,10 @@ export default function ReviewTagModal({
                         bulkData.files
                           ? bulkData.files.filter(
                               (item) =>
-                                item.detectionResult.natural_probability >
-                                item.detectionResult.deepfake_probability
+                                item.detectionResult.deepfake_probability < 50
                             ).length
                           : 0
-                      } Natural Images on Chain`
+                      } Original Images on Chain`
                     : "Register on Chain"}
                 </Button>
               </div>

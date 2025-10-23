@@ -1071,7 +1071,7 @@ export default function TagPageClient({ id }: TagPageClientProps) {
                           </div>
                           <div className="flex justify-between text-xs mt-1">
                             <span className="text-green-400">
-                              Natural:{" "}
+                              Original:{" "}
                               {metadata.files?.[currentMediaIndex]
                                 ?.detectionResult?.natural_probability || 0}
                               %
@@ -1135,7 +1135,7 @@ export default function TagPageClient({ id }: TagPageClientProps) {
                           </div>
                           <div className="flex justify-between text-xs mt-1">
                             <span className="text-green-400">
-                              Natural: {metadata.probabilities?.natural || 0}%
+                              Original: {metadata.probabilities?.natural || 0}%
                             </span>
                             <span className="text-yellow-400">
                               Deepfake: {metadata.probabilities?.deepfake || 0}%
