@@ -1105,7 +1105,7 @@ export default function TagPageClient({ id }: TagPageClientProps) {
                                 </div>
                                 <div className="flex justify-between text-xs mt-1">
                                   <span className="text-green-400">
-                                    Original: {categorical.displayNatural}%
+                                  Authentic: {categorical.displayNatural}%
                                   </span>
                                   <span className="text-yellow-400">
                                     Deepfake: {categorical.displayDeepfake}%
@@ -1198,7 +1198,7 @@ export default function TagPageClient({ id }: TagPageClientProps) {
                                 </div>
                                 <div className="flex justify-between text-xs mt-1">
                                   <span className="text-green-400">
-                                    Original: {categorical.displayNatural}%
+                                    Authentic: {categorical.displayNatural}%
                                   </span>
                                   <span className="text-yellow-400">
                                     Deepfake: {categorical.displayDeepfake}%

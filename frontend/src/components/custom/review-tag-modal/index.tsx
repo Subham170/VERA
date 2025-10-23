@@ -98,34 +98,38 @@ function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   return new ethers.Contract(CONTRACT_ADDRESS as string, ABI, signerOrProvider);
 }
 
-function getCategoricalProbabilities(naturalProbability: number) {
-  let displayNatural: number;
+function getCategoricalProbabilities(authenticProbability: number) {
+  let displayAuthentic: number;
   let displayDeepfake: number;
   let status: string;
 
-  if (naturalProbability >= 70) {
-    // AUTHENTIC: Show 90-99% natural
-    displayNatural = Math.floor(Math.random() * 10) + 90; // 90-99
-    displayDeepfake = 100 - displayNatural;
+  if (authenticProbability >= 70) {
+    // AUTHENTIC: Show 90-99% authentic
+    // Use a deterministic approach based on the input value
+    const seed = Math.floor(authenticProbability * 100) % 10;
+    displayAuthentic = 90 + seed; // 90-99
     status = "AUTHENTIC";
-  } else if (naturalProbability > 50) {
-    // INCONCLUSIVE: Show 70-90% natural
-    displayNatural = Math.floor(Math.random() * 21) + 70; // 70-90
-    displayDeepfake = 100 - displayNatural;
+  } else if (authenticProbability > 50) {
+    // INCONCLUSIVE: Show 70-90% authentic
+    const seed = Math.floor(authenticProbability * 100) % 21;
+    displayAuthentic = 70 + seed; // 70-90
     status = "INCONCLUSIVE";
   } else {
-    // SYNTHETIC: Show 0-70% natural (reject)
-    displayNatural = Math.floor(Math.random() * 71); // 0-70
-    displayDeepfake = 100 - displayNatural;
+    // SYNTHETIC: Show 0-70% authentic (reject)
+    const seed = Math.floor(authenticProbability * 100) % 71;
+    displayAuthentic = seed; // 0-70
     status = "SYNTHETIC";
   }
 
+  // Ensure deepfake probability is always 100 - authentic
+  displayDeepfake = 100 - displayAuthentic;
+
   return {
-    displayNatural,
+    displayAuthentic,
     displayDeepfake,
     status,
-    originalNatural: naturalProbability,
-    originalDeepfake: 100 - naturalProbability
+    originalAuthentic: authenticProbability,
+    originalDeepfake: 100 - authenticProbability
   };
 }
 
@@ -315,7 +319,7 @@ export default function ReviewTagModal({
 
       if (naturalImages.length === 0) {
         return toast.error(
-          "No original images to register. Please try different files."
+          "No authentic images to register. Please try different files."
         );
       }
 
@@ -324,8 +328,8 @@ export default function ReviewTagModal({
 
       setLoadingModal({
         isVisible: true,
-        title: "Registering Original Images",
-        subtitle: `Processing ${naturalImages.length} original images...`,
+        title: "Registering Authentic Images",
+        subtitle: `Processing ${naturalImages.length} authentic images...`,
         steps: [
           { text: "Connecting to Sepolia network", completed: false },
           { text: "Uploading files to IPFS", completed: false },
@@ -581,7 +585,7 @@ export default function ReviewTagModal({
         }));
 
         toast.success(
-          `Successfully registered ${naturalImages.length} original images on-chain!`
+          `Successfully registered ${naturalImages.length} authentic images on-chain!`
         );
         localStorage.removeItem("bulkUploadData");
         sessionStorage.removeItem("bulkUploadData");
@@ -872,7 +876,7 @@ export default function ReviewTagModal({
               {isBulkMode
                 ? `Review the analysis results for all ${
                     bulkData.files ? bulkData.files.length : 0
-                  } files. Only original images will be uploaded to IPFS.`
+                  } files. Only authentic images will be uploaded to IPFS.`
                 : "Check out your media tag preview and continue once you're happy with it"}
             </p>
 
@@ -1053,7 +1057,7 @@ export default function ReviewTagModal({
                                 </div>
                                 <div className="flex items-center space-x-2">
                                   <span className="text-sm text-gray-400">
-                                    Original:
+                                    Authentic:
                                   </span>
                                   {(() => {
                                     const naturalProb = bulkData.files[currentBulkIndex].detectionResult.natural_probability;
@@ -1061,7 +1065,7 @@ export default function ReviewTagModal({
                                     
                                     return (
                                       <span className="text-sm font-medium text-green-400">
-                                        {categorical.displayNatural}%
+                                        {categorical.displayAuthentic}%
                                       </span>
                                     );
                                   })()}
@@ -1180,7 +1184,7 @@ export default function ReviewTagModal({
                               </div>
                               <div className="flex items-center space-x-2">
                                 <span className="text-sm text-gray-400">
-                                  Original:
+                                  Authentic:
                                 </span>
                                 {(() => {
                                   const naturalProb = tagData.detectionResult.natural_probability;
@@ -1188,7 +1192,7 @@ export default function ReviewTagModal({
                                   
                                   return (
                                     <span className="text-sm font-medium text-green-400">
-                                      {categorical.displayNatural}%
+                                      {categorical.displayAuthentic}%
                                     </span>
                                   );
                                 })()}
@@ -1323,7 +1327,7 @@ export default function ReviewTagModal({
                   </div>
                   <div>
                     <p className="text-blue-300 font-medium">
-                      Only original images go further
+                      Only authentic images go further
                     </p>
                     <p className="text-blue-200/80 text-sm">
                       {
@@ -1366,7 +1370,7 @@ export default function ReviewTagModal({
                                 item.detectionResult.deepfake_probability < 50
                             ).length
                           : 0
-                      } Original Images on Chain`
+                      } Authentic Images on Chain`
                     : "Register on Chain"}
                 </Button>
               </div>
