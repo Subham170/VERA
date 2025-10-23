@@ -88,25 +88,18 @@ function decodeCustomError(errorData: string) {
   );
 }
 
-function getCategoricalProbabilities(naturalProbability: number) {
-  let displayNatural: number;
-  let displayDeepfake: number;
+function getCategoricalProbabilities(naturalProbability: number, detectionResult?: any) {
+  // Use the probabilities directly from the detection result (which now contain display values)
+  const displayNatural = detectionResult?.natural_probability || naturalProbability;
+  const displayDeepfake = detectionResult?.deepfake_probability || (100 - naturalProbability);
+  
+  // Determine status based on the display values
   let status: string;
-
-  if (naturalProbability >= 70) {
-    // AUTHENTIC: Show 90-99% natural
-    displayNatural = Math.floor(Math.random() * 10) + 90; // 90-99
-    displayDeepfake = 100 - displayNatural;
+  if (displayNatural >= 90) {
     status = "AUTHENTIC";
-  } else if (naturalProbability > 50) {
-    // INCONCLUSIVE: Show 70-90% natural
-    displayNatural = Math.floor(Math.random() * 21) + 70; // 70-90
-    displayDeepfake = 100 - displayNatural;
+  } else if (displayNatural >= 70) {
     status = "INCONCLUSIVE";
   } else {
-    // SYNTHETIC: Show 0-70% natural (reject)
-    displayNatural = Math.floor(Math.random() * 71); // 0-70
-    displayDeepfake = 100 - displayNatural;
     status = "SYNTHETIC";
   }
 
@@ -1081,7 +1074,8 @@ export default function TagPageClient({ id }: TagPageClientProps) {
                         {(() => {
                           const currentFile = metadata.files?.[currentMediaIndex];
                           const naturalProb = currentFile?.detectionResult?.natural_probability || 0;
-                          const categorical = getCategoricalProbabilities(naturalProb);
+                          const detectionResult = currentFile?.detectionResult;
+                          const categorical = getCategoricalProbabilities(naturalProb, detectionResult);
                           
                           return (
                             <>
@@ -1117,11 +1111,11 @@ export default function TagPageClient({ id }: TagPageClientProps) {
                                   CATEGORICAL STATUS
                                 </p>
                                 <p className={`text-sm font-bold ${
-                                  categorical.status === "AUTHENTIC" ? "text-green-400" :
-                                  categorical.status === "INCONCLUSIVE" ? "text-yellow-400" :
+                                  status === "AUTHENTIC" ? "text-green-400" :
+                                  status === "INCONCLUSIVE" ? "text-yellow-400" :
                                   "text-red-400"
                                 }`}>
-                                  {categorical.status}
+                                  {status}
                                 </p>
                               </div>
                             </>
@@ -1175,7 +1169,9 @@ export default function TagPageClient({ id }: TagPageClientProps) {
                       // Single upload analysis
                       <>
                         {(() => {
-                          const categorical = getCategoricalProbabilities(metadata.probabilities?.natural || 0);
+                          const naturalProb = metadata.probabilities?.natural || 0;
+                          const detectionResult = (metadata as any).detectionResult;
+                          const categorical = getCategoricalProbabilities(naturalProb, detectionResult);
                           return (
                             <>
                               <div>
@@ -1210,11 +1206,11 @@ export default function TagPageClient({ id }: TagPageClientProps) {
                                   CATEGORICAL STATUS
                                 </p>
                                 <p className={`text-sm font-bold ${
-                                  categorical.status === "AUTHENTIC" ? "text-green-400" :
-                                  categorical.status === "INCONCLUSIVE" ? "text-yellow-400" :
+                                  status === "AUTHENTIC" ? "text-green-400" :
+                                  status === "INCONCLUSIVE" ? "text-yellow-400" :
                                   "text-red-400"
                                 }`}>
-                                  {categorical.status}
+                                  {status}
                                 </p>
                               </div>
                             </>

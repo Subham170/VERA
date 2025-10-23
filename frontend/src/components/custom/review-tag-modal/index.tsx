@@ -98,31 +98,20 @@ function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   return new ethers.Contract(CONTRACT_ADDRESS as string, ABI, signerOrProvider);
 }
 
-function getCategoricalProbabilities(authenticProbability: number) {
-  let displayAuthentic: number;
-  let displayDeepfake: number;
+function getCategoricalProbabilities(authenticProbability: number, detectionResult?: any) {
+  // Use the probabilities directly from the detection result (which now contain display values)
+  const displayAuthentic = detectionResult?.natural_probability || authenticProbability;
+  const displayDeepfake = detectionResult?.deepfake_probability || (100 - authenticProbability);
+  
+  // Determine status based on the display values
   let status: string;
-
-  if (authenticProbability >= 70) {
-    // AUTHENTIC: Show 90-99% authentic
-    // Use a deterministic approach based on the input value
-    const seed = Math.floor(authenticProbability * 100) % 10;
-    displayAuthentic = 90 + seed; // 90-99
+  if (displayAuthentic >= 90) {
     status = "AUTHENTIC";
-  } else if (authenticProbability > 50) {
-    // INCONCLUSIVE: Show 70-90% authentic
-    const seed = Math.floor(authenticProbability * 100) % 21;
-    displayAuthentic = 70 + seed; // 70-90
+  } else if (displayAuthentic >= 70) {
     status = "INCONCLUSIVE";
   } else {
-    // SYNTHETIC: Show 0-70% authentic (reject)
-    const seed = Math.floor(authenticProbability * 100) % 71;
-    displayAuthentic = seed; // 0-70
     status = "SYNTHETIC";
   }
-
-  // Ensure deepfake probability is always 100 - authentic
-  displayDeepfake = 100 - displayAuthentic;
 
   return {
     displayAuthentic,
@@ -987,7 +976,8 @@ export default function ReviewTagModal({
                               bulkData.files[currentBulkIndex]
                                 ?.detectionResult && (() => {
                                 const naturalProb = bulkData.files[currentBulkIndex].detectionResult.natural_probability;
-                                const categorical = getCategoricalProbabilities(naturalProb);
+                                const detectionResult = bulkData.files[currentBulkIndex].detectionResult;
+                                const categorical = getCategoricalProbabilities(naturalProb, detectionResult);
                                 
                                 return (
                                   <div
@@ -1017,7 +1007,8 @@ export default function ReviewTagModal({
                                 </h3>
                                 {(() => {
                                   const naturalProb = bulkData.files[currentBulkIndex].detectionResult.natural_probability;
-                                  const categorical = getCategoricalProbabilities(naturalProb);
+                                  const detectionResult = bulkData.files[currentBulkIndex].detectionResult;
+                                  const categorical = getCategoricalProbabilities(naturalProb, detectionResult);
                                   
                                   return (
                                     <span
@@ -1040,7 +1031,8 @@ export default function ReviewTagModal({
                                   </span>
                                   {(() => {
                                     const naturalProb = bulkData.files[currentBulkIndex].detectionResult.natural_probability;
-                                    const categorical = getCategoricalProbabilities(naturalProb);
+                                    const detectionResult = bulkData.files[currentBulkIndex].detectionResult;
+                                    const categorical = getCategoricalProbabilities(naturalProb, detectionResult);
                                     
                                     return (
                                       <span
@@ -1061,7 +1053,8 @@ export default function ReviewTagModal({
                                   </span>
                                   {(() => {
                                     const naturalProb = bulkData.files[currentBulkIndex].detectionResult.natural_probability;
-                                    const categorical = getCategoricalProbabilities(naturalProb);
+                                    const detectionResult = bulkData.files[currentBulkIndex].detectionResult;
+                                    const categorical = getCategoricalProbabilities(naturalProb, detectionResult);
                                     
                                     return (
                                       <span className="text-sm font-medium text-green-400">
@@ -1115,7 +1108,8 @@ export default function ReviewTagModal({
                             {/* Status indicator overlay */}
                             {tagData.detectionResult && (() => {
                               const naturalProb = tagData.detectionResult.natural_probability;
-                              const categorical = getCategoricalProbabilities(naturalProb);
+                              const detectionResult = tagData.detectionResult;
+                              const categorical = getCategoricalProbabilities(naturalProb, detectionResult);
                               
                               return (
                                 <div
@@ -1144,7 +1138,8 @@ export default function ReviewTagModal({
                               </h3>
                               {(() => {
                                 const naturalProb = tagData.detectionResult.natural_probability;
-                                const categorical = getCategoricalProbabilities(naturalProb);
+                                const detectionResult = tagData.detectionResult;
+                                const categorical = getCategoricalProbabilities(naturalProb, detectionResult);
                                 
                                 return (
                                   <span
@@ -1167,7 +1162,8 @@ export default function ReviewTagModal({
                                 </span>
                                 {(() => {
                                   const naturalProb = tagData.detectionResult.natural_probability;
-                                  const categorical = getCategoricalProbabilities(naturalProb);
+                                  const detectionResult = tagData.detectionResult;
+                                  const categorical = getCategoricalProbabilities(naturalProb, detectionResult);
                                   
                                   return (
                                     <span
@@ -1188,7 +1184,8 @@ export default function ReviewTagModal({
                                 </span>
                                 {(() => {
                                   const naturalProb = tagData.detectionResult.natural_probability;
-                                  const categorical = getCategoricalProbabilities(naturalProb);
+                                  const detectionResult = tagData.detectionResult;
+                                  const categorical = getCategoricalProbabilities(naturalProb, detectionResult);
                                   
                                   return (
                                     <span className="text-sm font-medium text-green-400">

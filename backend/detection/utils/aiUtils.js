@@ -55,6 +55,13 @@ Rules:
 - No ranges allowed, only exact integers.
 - If the medium does not contain faces/voices, state 'not applicable' for that section.
 - Keep reasoning concise, factual, and evidence-based.
+
+Display Percentage Rules:
+- If natural_probability >= 70: set natural_probability to 90-99 (AUTHENTIC range)
+- If natural_probability > 50 and < 70: set natural_probability to 70-89 (INCONCLUSIVE range)  
+- If natural_probability <= 50: set natural_probability to 0-69 (SYNTHETIC range)
+- deepfake_probability = 100 - natural_probability
+- Use deterministic values based on the original analysis (same input = same output)
 `;
 
 /**
