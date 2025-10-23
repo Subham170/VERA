@@ -54,7 +54,7 @@ export async function uploadToCloudinary(filePath, mimeType, options = {}) {
       const result = await baseCloudinaryUtils.uploadFile(filePath, {
         folder: folder,
         resource_type: resourceType,
-        quality: "auto",
+        quality: 95,
         fetch_format: "auto",
         timeout: 120000, // 2 minutes timeout
         chunk_size: 6000000, // 6MB chunks

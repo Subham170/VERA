@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { API_ENDPOINTS } from "@/lib/config";
 import { getAddress } from "ethers";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 interface Tag {
   _id: string;
@@ -21,6 +21,25 @@ interface Tag {
   hash_address: string;
   address: string;
   createdAt: string;
+  file_count?: number;
+  is_bulk_upload?: boolean;
+  view_count?: number;
+  like_count?: number;
+}
+
+interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+}
+
+interface TagsResponse {
+  status: string;
+  data: {
+    tags: Tag[];
+    pagination: PaginationInfo;
+  };
 }
 
 export default function Home() {
@@ -32,6 +51,15 @@ export default function Home() {
   const [tagsLoading, setTagsLoading] = useState(false);
   const [tagsError, setTagsError] = useState<string | null>(null);
   const [authTimeout, setAuthTimeout] = useState(false);
+  
+  // Infinite scroll state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMorePages, setHasMorePages] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [paginationInfo, setPaginationInfo] = useState<PaginationInfo | null>(null);
+  
+  // Intersection observer ref
+  const observerRef = useRef<HTMLDivElement>(null);
 
   const handleGetStarted = () => {
     router.push("/login");
@@ -63,41 +91,136 @@ export default function Home() {
     console.log("Auth state:", { isLoading, isAuthorized, authTimeout });
   }, [isLoading, isAuthorized, authTimeout]);
 
-  useEffect(() => {
-    const fetchUserTags = async () => {
+  // Fetch tags with pagination
+  const fetchUserTags = useCallback(async (page: number = 1, append: boolean = false) => {
+    console.log(`Fetching tags - Page: ${page}, Append: ${append}`);
+    
+    if (append) {
+      setLoadingMore(true);
+    } else {
       setTagsLoading(true);
-      setTagsError(null);
+    }
+    setTagsError(null);
 
-      try {
-        if (!window.ethereum) {
-          router.push("/login");
-          return;
-        }
-
-        const accounts = await window.ethereum.request({
-          method: "eth_requestAccounts",
-        });
-        if (accounts.length === 0) {
-          router.push("/login");
-          return;
-        }
-
-        const checksummedAddress = getAddress(accounts[0]);
-        const res = await fetch(API_ENDPOINTS.TAGS);
-        if (!res.ok) throw new Error("Failed to fetch user tags.");
-
-        const tagsData = await res.json();
-        setUserTags(tagsData?.data.tags || []);
-      } catch (err: any) {
-        console.error("Failed to fetch tags:", err);
-        setTagsError("Failed to load user media.");
-      } finally {
-        setTagsLoading(false);
+    try {
+      if (!window.ethereum) {
+        router.push("/login");
+        return;
       }
-    };
 
-    if (isAuthorized) fetchUserTags();
-  }, [isAuthorized, router]);
+      const accounts = await window.ethereum.request({
+        method: "eth_requestAccounts",
+      });
+      if (accounts.length === 0) {
+        router.push("/login");
+        return;
+      }
+
+      const checksummedAddress = getAddress(accounts[0]);
+      const url = `${API_ENDPOINTS.TAGS}?page=${page}&limit=10`;
+      console.log('Fetching from URL:', url);
+      
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch user tags.");
+
+      const tagsData: TagsResponse = await res.json();
+      console.log('API Response:', tagsData);
+      
+      const newTags = tagsData?.data.tags || [];
+      const pagination = tagsData?.data.pagination;
+
+      if (append) {
+        setUserTags(prev => {
+          const updated = [...prev, ...newTags];
+          console.log(`Appending ${newTags.length} tags. Total: ${updated.length}`);
+          return updated;
+        });
+      } else {
+        setUserTags(newTags);
+        console.log(`Setting ${newTags.length} tags`);
+      }
+
+      setPaginationInfo(pagination);
+      setCurrentPage(page);
+      const hasMore = pagination ? page < pagination.totalPages : false;
+      setHasMorePages(hasMore);
+      
+      console.log('Pagination info:', {
+        currentPage: page,
+        totalPages: pagination?.totalPages,
+        hasMore,
+        totalItems: pagination?.totalItems
+      });
+    } catch (err: any) {
+      console.error("Failed to fetch tags:", err);
+      setTagsError("Failed to load user media.");
+    } finally {
+      setTagsLoading(false);
+      setLoadingMore(false);
+    }
+  }, [router]);
+
+  // Load more function for infinite scroll
+  const loadMoreTags = useCallback(() => {
+    console.log('loadMoreTags called:', {
+      loadingMore,
+      hasMorePages,
+      currentPage,
+      nextPage: currentPage + 1
+    });
+    
+    if (!loadingMore && hasMorePages) {
+      console.log('Calling fetchUserTags for page:', currentPage + 1);
+      fetchUserTags(currentPage + 1, true);
+    } else {
+      console.log('Not loading more - conditions not met');
+    }
+  }, [currentPage, hasMorePages, loadingMore, fetchUserTags]);
+
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        console.log('Intersection observer triggered:', {
+          isIntersecting: entry.isIntersecting,
+          hasMorePages,
+          loadingMore,
+          currentPage,
+          totalPages: paginationInfo?.totalPages
+        });
+        
+        if (entry.isIntersecting && hasMorePages && !loadingMore) {
+          console.log('Loading more tags...');
+          loadMoreTags();
+        }
+      },
+      { 
+        threshold: 0.1,
+        rootMargin: '100px' // Trigger 100px before the element comes into view
+      }
+    );
+
+    const currentRef = observerRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+      console.log('Observer attached to element');
+    } else {
+      console.log('Observer ref not found');
+    }
+
+    return () => {
+      console.log('Observer disconnected');
+      observer.disconnect();
+    };
+  }, [hasMorePages, loadingMore, currentPage, paginationInfo?.totalPages, loadMoreTags]);
+
+  // Initial load
+  useEffect(() => {
+    if (isAuthorized) {
+      fetchUserTags(1, false);
+    }
+  }, [isAuthorized, fetchUserTags]);
 
   if (isLoading && !authTimeout) {
     return (
@@ -167,7 +290,12 @@ export default function Home() {
               </p>
             </div>
             <div className="hidden md:flex items-center gap-2 text-sm text-gray-400">
-              <span>{userTags.length} items</span>
+              <span>{paginationInfo?.totalItems || userTags.length} items</span>
+              {paginationInfo && (
+                <span className="text-xs">
+                  (Page {paginationInfo.currentPage} of {paginationInfo.totalPages})
+                </span>
+              )}
             </div>
           </div>
 
@@ -253,6 +381,46 @@ export default function Home() {
                 </div>
               </div>
               <MediaGrid mediaItems={userTags} />
+              
+              {/* Infinite scroll trigger and loading states */}
+              {hasMorePages && (
+                <div ref={observerRef} className="flex flex-col items-center justify-center py-8">
+                  {loadingMore ? (
+                    <div className="flex flex-col items-center space-y-3">
+                      <div className="w-8 h-8 border-3 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+                      <p className="text-gray-400 text-sm">Loading more media...</p>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-4">
+                      <p className="text-gray-400 text-sm">Scroll down to load more</p>
+                      <div className="w-6 h-6 mx-auto text-gray-400">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        </svg>
+                      </div>
+                      {/* Manual load more button for testing */}
+                      <button
+                        onClick={loadMoreTags}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      >
+                        Load More (Manual)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {!hasMorePages && userTags.length > 0 && (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mb-3">
+                    <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-400 text-sm">You've reached the end of your media library</p>
+                  <p className="text-gray-500 text-xs mt-1">All {paginationInfo?.totalItems || userTags.length} items loaded</p>
+                </div>
+              )}
             </div>
           )}
         </div>

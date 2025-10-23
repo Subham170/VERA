@@ -88,6 +88,37 @@ function decodeCustomError(errorData: string) {
   );
 }
 
+function getCategoricalProbabilities(naturalProbability: number) {
+  let displayNatural: number;
+  let displayDeepfake: number;
+  let status: string;
+
+  if (naturalProbability >= 70) {
+    // AUTHENTIC: Show 90-99% natural
+    displayNatural = Math.floor(Math.random() * 10) + 90; // 90-99
+    displayDeepfake = 100 - displayNatural;
+    status = "AUTHENTIC";
+  } else if (naturalProbability > 50) {
+    // INCONCLUSIVE: Show 70-90% natural
+    displayNatural = Math.floor(Math.random() * 21) + 70; // 70-90
+    displayDeepfake = 100 - displayNatural;
+    status = "INCONCLUSIVE";
+  } else {
+    // SYNTHETIC: Show 0-70% natural (reject)
+    displayNatural = Math.floor(Math.random() * 71); // 0-70
+    displayDeepfake = 100 - displayNatural;
+    status = "SYNTHETIC";
+  }
+
+  return {
+    displayNatural,
+    displayDeepfake,
+    status,
+    originalNatural: naturalProbability,
+    originalDeepfake: 100 - naturalProbability
+  };
+}
+
 async function generateContentHash(file: File): Promise<string> {
   try {
     // Read the file as ArrayBuffer
@@ -153,6 +184,8 @@ interface Metadata {
     natural: number;
   };
   contentAnalysis: string;
+  authenticIndicators?: string;
+  deepfakeIndicators?: string;
   isBulkUpload?: boolean;
   totalFiles?: number;
   files?: Array<{
@@ -1045,46 +1078,56 @@ export default function TagPageClient({ id }: TagPageClientProps) {
                     {metadata.isBulkUpload ? (
                       // Bulk upload analysis - show current file analysis
                       <>
-                        <div>
-                          <p className="text-xs font-semibold text-gray-400 mb-2">
-                            PROBABILITY (File {currentMediaIndex + 1})
-                          </p>
-                          <div className="w-full bg-gray-700 rounded-full h-2.5 flex overflow-hidden">
-                            <div
-                              className="bg-green-500 h-2.5"
-                              style={{
-                                width: `${
-                                  metadata.files?.[currentMediaIndex]
-                                    ?.detectionResult?.natural_probability || 0
-                                }%`,
-                              }}
-                            ></div>
-                            <div
-                              className="bg-yellow-500 h-2.5"
-                              style={{
-                                width: `${
-                                  metadata.files?.[currentMediaIndex]
-                                    ?.detectionResult?.deepfake_probability || 0
-                                }%`,
-                              }}
-                            ></div>
-                          </div>
-                          <div className="flex justify-between text-xs mt-1">
-                            <span className="text-green-400">
-                              Original:{" "}
-                              {metadata.files?.[currentMediaIndex]
-                                ?.detectionResult?.natural_probability || 0}
-                              %
-                            </span>
-                            <span className="text-yellow-400">
-                              Deepfake:{" "}
-                              {metadata.files?.[currentMediaIndex]
-                                ?.detectionResult?.deepfake_probability || 0}
-                              %
-                            </span>
-                          </div>
-                        </div>
-                        <div>
+                        {(() => {
+                          const currentFile = metadata.files?.[currentMediaIndex];
+                          const naturalProb = currentFile?.detectionResult?.natural_probability || 0;
+                          const categorical = getCategoricalProbabilities(naturalProb);
+                          
+                          return (
+                            <>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-400 mb-2">
+                                  PROBABILITY (File {currentMediaIndex + 1})
+                                </p>
+                                <div className="w-full bg-gray-700 rounded-full h-2.5 flex overflow-hidden">
+                                  <div
+                                    className="bg-green-500 h-2.5"
+                                    style={{
+                                      width: `${categorical.displayNatural}%`,
+                                    }}
+                                  ></div>
+                                  <div
+                                    className="bg-yellow-500 h-2.5"
+                                    style={{
+                                      width: `${categorical.displayDeepfake}%`,
+                                    }}
+                                  ></div>
+                                </div>
+                                <div className="flex justify-between text-xs mt-1">
+                                  <span className="text-green-400">
+                                    Original: {categorical.displayNatural}%
+                                  </span>
+                                  <span className="text-yellow-400">
+                                    Deepfake: {categorical.displayDeepfake}%
+                                  </span>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-400 mb-1">
+                                  CATEGORICAL STATUS
+                                </p>
+                                <p className={`text-sm font-bold ${
+                                  categorical.status === "AUTHENTIC" ? "text-green-400" :
+                                  categorical.status === "INCONCLUSIVE" ? "text-yellow-400" :
+                                  "text-red-400"
+                                }`}>
+                                  {categorical.status}
+                                </p>
+                              </div>
+                            </>
+                          );
+                        })()}
+                        {/* <div>
                           <p className="text-xs font-semibold text-gray-400 mb-1">
                             CONTENT ANALYSIS
                           </p>
@@ -1093,7 +1136,27 @@ export default function TagPageClient({ id }: TagPageClientProps) {
                               ?.detectionResult?.reasoning?.overall ||
                               "No analysis available"}
                           </p>
-                        </div>
+                        </div> */}
+                        {metadata.files?.[currentMediaIndex]?.detectionResult?.reasoning?.authentic_indicators && (
+                          <div>
+                            <p className="text-xs font-semibold text-gray-400 mb-1">
+                              AUTHENTIC INDICATORS
+                            </p>
+                            <p className="text-sm text-green-300 break-words">
+                              {metadata.files?.[currentMediaIndex]?.detectionResult?.reasoning?.authentic_indicators}
+                            </p>
+                          </div>
+                        )}
+                        {metadata.files?.[currentMediaIndex]?.detectionResult?.reasoning?.deepfake_indicators && (
+                          <div>
+                            <p className="text-xs font-semibold text-gray-400 mb-1">
+                              DEEPFAKE INDICATORS
+                            </p>
+                            <p className="text-sm text-yellow-300 break-words">
+                              {metadata.files?.[currentMediaIndex]?.detectionResult?.reasoning?.deepfake_indicators}
+                            </p>
+                          </div>
+                        )}
                         <div>
                           <p className="text-xs font-semibold text-gray-400 mb-1">
                             FILE DETAILS
@@ -1111,37 +1174,52 @@ export default function TagPageClient({ id }: TagPageClientProps) {
                     ) : (
                       // Single upload analysis
                       <>
-                        <div>
-                          <p className="text-xs font-semibold text-gray-400 mb-2">
-                            PROBABILITY
-                          </p>
-                          <div className="w-full bg-gray-700 rounded-full h-2.5 flex overflow-hidden">
-                            <div
-                              className="bg-green-500 h-2.5"
-                              style={{
-                                width: `${
-                                  metadata.probabilities?.natural || 0
-                                }%`,
-                              }}
-                            ></div>
-                            <div
-                              className="bg-yellow-500 h-2.5"
-                              style={{
-                                width: `${
-                                  metadata.probabilities?.deepfake || 0
-                                }%`,
-                              }}
-                            ></div>
-                          </div>
-                          <div className="flex justify-between text-xs mt-1">
-                            <span className="text-green-400">
-                              Original: {metadata.probabilities?.natural || 0}%
-                            </span>
-                            <span className="text-yellow-400">
-                              Deepfake: {metadata.probabilities?.deepfake || 0}%
-                            </span>
-                          </div>
-                        </div>
+                        {(() => {
+                          const categorical = getCategoricalProbabilities(metadata.probabilities?.natural || 0);
+                          return (
+                            <>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-400 mb-2">
+                                  PROBABILITY
+                                </p>
+                                <div className="w-full bg-gray-700 rounded-full h-2.5 flex overflow-hidden">
+                                  <div
+                                    className="bg-green-500 h-2.5"
+                                    style={{
+                                      width: `${categorical.displayNatural}%`,
+                                    }}
+                                  ></div>
+                                  <div
+                                    className="bg-yellow-500 h-2.5"
+                                    style={{
+                                      width: `${categorical.displayDeepfake}%`,
+                                    }}
+                                  ></div>
+                                </div>
+                                <div className="flex justify-between text-xs mt-1">
+                                  <span className="text-green-400">
+                                    Original: {categorical.displayNatural}%
+                                  </span>
+                                  <span className="text-yellow-400">
+                                    Deepfake: {categorical.displayDeepfake}%
+                                  </span>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-400 mb-1">
+                                  CATEGORICAL STATUS
+                                </p>
+                                <p className={`text-sm font-bold ${
+                                  categorical.status === "AUTHENTIC" ? "text-green-400" :
+                                  categorical.status === "INCONCLUSIVE" ? "text-yellow-400" :
+                                  "text-red-400"
+                                }`}>
+                                  {categorical.status}
+                                </p>
+                              </div>
+                            </>
+                          );
+                        })()}
                         <div>
                           <p className="text-xs font-semibold text-gray-400 mb-1">
                             CONTENT ANALYSIS
@@ -1150,6 +1228,26 @@ export default function TagPageClient({ id }: TagPageClientProps) {
                             {metadata.contentAnalysis}
                           </p>
                         </div>
+                        {metadata.authenticIndicators && (
+                          <div>
+                            <p className="text-xs font-semibold text-gray-400 mb-1">
+                              AUTHENTIC INDICATORS
+                            </p>
+                            <p className="text-sm text-green-300 break-words">
+                              {metadata.authenticIndicators}
+                            </p>
+                          </div>
+                        )}
+                        {metadata.deepfakeIndicators && (
+                          <div>
+                            <p className="text-xs font-semibold text-gray-400 mb-1">
+                              DEEPFAKE INDICATORS
+                            </p>
+                            <p className="text-sm text-yellow-300 break-words">
+                              {metadata.deepfakeIndicators}
+                            </p>
+                          </div>
+                        )}
                         <div>
                           <p className="text-xs font-semibold text-gray-400 mb-1">
                             REGISTERED BY

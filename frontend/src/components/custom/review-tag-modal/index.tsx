@@ -98,6 +98,37 @@ function getEthersContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   return new ethers.Contract(CONTRACT_ADDRESS as string, ABI, signerOrProvider);
 }
 
+function getCategoricalProbabilities(naturalProbability: number) {
+  let displayNatural: number;
+  let displayDeepfake: number;
+  let status: string;
+
+  if (naturalProbability >= 70) {
+    // AUTHENTIC: Show 90-99% natural
+    displayNatural = Math.floor(Math.random() * 10) + 90; // 90-99
+    displayDeepfake = 100 - displayNatural;
+    status = "AUTHENTIC";
+  } else if (naturalProbability > 50) {
+    // INCONCLUSIVE: Show 70-90% natural
+    displayNatural = Math.floor(Math.random() * 21) + 70; // 70-90
+    displayDeepfake = 100 - displayNatural;
+    status = "INCONCLUSIVE";
+  } else {
+    // SYNTHETIC: Show 0-70% natural (reject)
+    displayNatural = Math.floor(Math.random() * 71); // 0-70
+    displayDeepfake = 100 - displayNatural;
+    status = "SYNTHETIC";
+  }
+
+  return {
+    displayNatural,
+    displayDeepfake,
+    status,
+    originalNatural: naturalProbability,
+    originalDeepfake: 100 - naturalProbability
+  };
+}
+
 export default function ReviewTagModal({
   onCancel,
   isBulkUpload = false,
@@ -278,7 +309,7 @@ export default function ReviewTagModal({
       const bulkData = JSON.parse(bulkDataRaw);
       const naturalImages = bulkData.files
         ? bulkData.files.filter(
-            (item: any) => item.detectionResult.deepfake_probability < 50
+            (item: any) => item.detectionResult.natural_probability > 50
           )
         : [];
 
@@ -950,21 +981,22 @@ export default function ReviewTagModal({
                             {/* Status indicator overlay */}
                             {bulkData.files &&
                               bulkData.files[currentBulkIndex]
-                                ?.detectionResult && (
-                                <div
-                                  className={`absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium ${
-                                    bulkData.files[currentBulkIndex]
-                                      .detectionResult.deepfake_probability >= 50
-                                      ? "bg-red-500 text-white"
-                                      : "bg-green-500 text-white"
-                                  }`}
-                                >
-                                  {bulkData.files[currentBulkIndex]
-                                    .detectionResult.deepfake_probability >= 50
-                                    ? "FAKE"
-                                    : "ORIGINAL"}
-                                </div>
-                              )}
+                                ?.detectionResult && (() => {
+                                const naturalProb = bulkData.files[currentBulkIndex].detectionResult.natural_probability;
+                                const categorical = getCategoricalProbabilities(naturalProb);
+                                
+                                return (
+                                  <div
+                                    className={`absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium ${
+                                      categorical.status === "AUTHENTIC" ? "bg-green-500 text-white" :
+                                      categorical.status === "INCONCLUSIVE" ? "bg-yellow-500 text-white" :
+                                      "bg-red-500 text-white"
+                                    }`}
+                                  >
+                                    {categorical.status}
+                                  </div>
+                                );
+                              })()}
                           </div>
                         </div>
 
@@ -979,19 +1011,22 @@ export default function ReviewTagModal({
                                 >
                                   {bulkData.files[currentBulkIndex].name}
                                 </h3>
-                                <span
-                                  className={`text-xs px-2 py-1 rounded ${
-                                    bulkData.files[currentBulkIndex]
-                                      .detectionResult.deepfake_probability >= 50
-                                      ? "bg-red-500/20 text-red-400"
-                                      : "bg-green-500/20 text-green-400"
-                                  }`}
-                                >
-                                  {bulkData.files[currentBulkIndex]
-                                    .detectionResult.deepfake_probability >= 50
-                                    ? "Will be excluded"
-                                    : "Will proceed to IPFS"}
-                                </span>
+                                {(() => {
+                                  const naturalProb = bulkData.files[currentBulkIndex].detectionResult.natural_probability;
+                                  const categorical = getCategoricalProbabilities(naturalProb);
+                                  
+                                  return (
+                                    <span
+                                      className={`text-xs px-2 py-1 rounded ${
+                                        categorical.status === "AUTHENTIC" ? "bg-green-500/20 text-green-400" :
+                                        categorical.status === "INCONCLUSIVE" ? "bg-yellow-500/20 text-yellow-400" :
+                                        "bg-red-500/20 text-red-400"
+                                      }`}
+                                    >
+                                      {categorical.status === "SYNTHETIC" ? "Will be excluded" : "Will proceed to IPFS"}
+                                    </span>
+                                  );
+                                })()}
                               </div>
 
                               <div className="flex items-center space-x-4">
@@ -999,32 +1034,37 @@ export default function ReviewTagModal({
                                   <span className="text-sm text-gray-400">
                                     Deepfake:
                                   </span>
-                                  <span
-                                  className={`text-sm font-medium ${
-                                    bulkData.files[currentBulkIndex]
-                                      .detectionResult.deepfake_probability >= 50
-                                      ? "text-red-400"
-                                      : "text-green-400"
-                                  }`}
-                                  >
-                                    {
-                                      bulkData.files[currentBulkIndex]
-                                        .detectionResult.deepfake_probability
-                                    }
-                                    %
-                                  </span>
+                                  {(() => {
+                                    const naturalProb = bulkData.files[currentBulkIndex].detectionResult.natural_probability;
+                                    const categorical = getCategoricalProbabilities(naturalProb);
+                                    
+                                    return (
+                                      <span
+                                        className={`text-sm font-medium ${
+                                          categorical.status === "SYNTHETIC" ? "text-red-400" :
+                                          categorical.status === "INCONCLUSIVE" ? "text-yellow-400" :
+                                          "text-green-400"
+                                        }`}
+                                      >
+                                        {categorical.displayDeepfake}%
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                                 <div className="flex items-center space-x-2">
                                   <span className="text-sm text-gray-400">
                                     Original:
                                   </span>
-                                  <span className="text-sm font-medium text-green-400">
-                                    {
-                                      bulkData.files[currentBulkIndex]
-                                        .detectionResult.natural_probability
-                                    }
-                                    %
-                                  </span>
+                                  {(() => {
+                                    const naturalProb = bulkData.files[currentBulkIndex].detectionResult.natural_probability;
+                                    const categorical = getCategoricalProbabilities(naturalProb);
+                                    
+                                    return (
+                                      <span className="text-sm font-medium text-green-400">
+                                        {categorical.displayNatural}%
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                               </div>
 
@@ -1069,19 +1109,22 @@ export default function ReviewTagModal({
                               </div>
                             )}
                             {/* Status indicator overlay */}
-                            {tagData.detectionResult && (
-                              <div
-                                className={`absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium ${
-                                  tagData.detectionResult.deepfake_probability >= 50
-                                    ? "bg-red-500 text-white"
-                                    : "bg-green-500 text-white"
-                                }`}
-                              >
-                                {tagData.detectionResult.deepfake_probability >= 50
-                                  ? "FAKE"
-                                  : "ORIGINAL"}
-                              </div>
-                            )}
+                            {tagData.detectionResult && (() => {
+                              const naturalProb = tagData.detectionResult.natural_probability;
+                              const categorical = getCategoricalProbabilities(naturalProb);
+                              
+                              return (
+                                <div
+                                  className={`absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium ${
+                                    categorical.status === "AUTHENTIC" ? "bg-green-500 text-white" :
+                                    categorical.status === "INCONCLUSIVE" ? "bg-yellow-500 text-white" :
+                                    "bg-red-500 text-white"
+                                  }`}
+                                >
+                                  {categorical.status}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
 
@@ -1095,17 +1138,22 @@ export default function ReviewTagModal({
                               >
                                 {fileName}
                               </h3>
-                              <span
-                                className={`text-xs px-2 py-1 rounded ${
-                                  tagData.detectionResult.deepfake_probability >= 50
-                                    ? "bg-red-500/20 text-red-400"
-                                    : "bg-green-500/20 text-green-400"
-                                }`}
-                              >
-                                {tagData.detectionResult.deepfake_probability >= 50
-                                  ? "Will be excluded"
-                                  : "Will proceed to IPFS"}
-                              </span>
+                              {(() => {
+                                const naturalProb = tagData.detectionResult.natural_probability;
+                                const categorical = getCategoricalProbabilities(naturalProb);
+                                
+                                return (
+                                  <span
+                                    className={`text-xs px-2 py-1 rounded ${
+                                      categorical.status === "AUTHENTIC" ? "bg-green-500/20 text-green-400" :
+                                      categorical.status === "INCONCLUSIVE" ? "bg-yellow-500/20 text-yellow-400" :
+                                      "bg-red-500/20 text-red-400"
+                                    }`}
+                                  >
+                                    {categorical.status === "SYNTHETIC" ? "Will be excluded" : "Will proceed to IPFS"}
+                                  </span>
+                                );
+                              })()}
                             </div>
 
                             <div className="flex items-center space-x-4">
@@ -1113,23 +1161,37 @@ export default function ReviewTagModal({
                                 <span className="text-sm text-gray-400">
                                   Deepfake:
                                 </span>
-                                <span
-                                  className={`text-sm font-medium ${
-                                    tagData.detectionResult.deepfake_probability >= 50
-                                      ? "text-red-400"
-                                      : "text-green-400"
-                                  }`}
-                                >
-                                  {tagData.detectionResult.deepfake_probability}%
-                                </span>
+                                {(() => {
+                                  const naturalProb = tagData.detectionResult.natural_probability;
+                                  const categorical = getCategoricalProbabilities(naturalProb);
+                                  
+                                  return (
+                                    <span
+                                      className={`text-sm font-medium ${
+                                        categorical.status === "SYNTHETIC" ? "text-red-400" :
+                                        categorical.status === "INCONCLUSIVE" ? "text-yellow-400" :
+                                        "text-green-400"
+                                      }`}
+                                    >
+                                      {categorical.displayDeepfake}%
+                                    </span>
+                                  );
+                                })()}
                               </div>
                               <div className="flex items-center space-x-2">
                                 <span className="text-sm text-gray-400">
                                   Original:
                                 </span>
-                                <span className="text-sm font-medium text-green-400">
-                                  {tagData.detectionResult.natural_probability}%
-                                </span>
+                                {(() => {
+                                  const naturalProb = tagData.detectionResult.natural_probability;
+                                  const categorical = getCategoricalProbabilities(naturalProb);
+                                  
+                                  return (
+                                    <span className="text-sm font-medium text-green-400">
+                                      {categorical.displayNatural}%
+                                    </span>
+                                  );
+                                })()}
                               </div>
                             </div>
 

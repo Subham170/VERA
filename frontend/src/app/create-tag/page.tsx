@@ -720,6 +720,8 @@ export default function CreateTagPage() {
             natural: detectionResult.natural_probability,
           },
           contentAnalysis: detectionResult.reasoning.content_analysis,
+          authenticIndicators: detectionResult.reasoning.authentic_indicators,
+          deepfakeIndicators: detectionResult.reasoning.deepfake_indicators,
         };
         localStorage.setItem(
           "metadata",
@@ -731,19 +733,24 @@ export default function CreateTagPage() {
         );
       }
 
-      if (detectionResult.deepfake_probability >= 70) {
+      // Use categorical system for rejection logic
+      const naturalProbability = detectionResult.natural_probability;
+      
+      if (naturalProbability <= 50) {
+        // SYNTHETIC: Reject
         setIsHighDeepfakeDetected(true);
         setDeepfakeWarning(
-          `High deepfake probability detected (${detectionResult.deepfake_probability}%). Please try another media file.`
+          `SYNTHETIC content detected (${naturalProbability}% natural). Please try another media file.`
         );
         toast.error(
-          "High deepfake probability detected. Please try another media file."
+          "SYNTHETIC content detected. Please try another media file."
         );
         setLoadingModal((prev) => ({ ...prev, isVisible: false }));
         return;
-      } else if (detectionResult.deepfake_probability > 50) {
+      } else if (naturalProbability < 70) {
+        // INCONCLUSIVE: Show warning
         setDeepfakeWarning(
-          `Warning: AI analysis indicates a moderate probability (${detectionResult.deepfake_probability}%).`
+          `INCONCLUSIVE: AI analysis indicates moderate uncertainty (${naturalProbability}% natural).`
         );
       }
 

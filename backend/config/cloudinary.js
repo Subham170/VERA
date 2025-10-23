@@ -30,7 +30,7 @@ const createStorage = (folder, allowedFormats) => {
     params: {
       folder: folder,
       allowed_formats: allowedFormats,
-      transformation: [{ quality: "auto" }, { fetch_format: "auto" }],
+      transformation: [{ quality: 95 }, { fetch_format: "auto" }],
     },
   });
 };
@@ -295,7 +295,7 @@ export const cloudinaryUtils = {
   getOptimizedUrl: (publicId, options = {}) => {
     const client = configureCloudinary();
     return client.url(publicId, {
-      quality: "auto",
+      quality: 95,
       fetch_format: "auto",
       ...options,
     });
@@ -308,7 +308,7 @@ export const cloudinaryUtils = {
       width: width,
       height: height,
       crop: "fill",
-      quality: "auto",
+      quality: 95,
       fetch_format: "auto",
     });
   },

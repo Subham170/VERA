@@ -15,7 +15,7 @@ const tagImageStorage = new CloudinaryStorage({
   params: {
     folder: "vera/tags/images",
     allowed_formats: ["jpg", "jpeg", "png", "gif", "webp", "svg"],
-    transformation: [{ quality: "auto" }, { fetch_format: "auto" }],
+    transformation: [{ quality: 95 }, { fetch_format: "auto" }],
   },
 });
 
@@ -25,6 +25,7 @@ const tagVideoStorage = new CloudinaryStorage({
     folder: "vera/tags/videos",
     resource_type: "video",
     allowed_formats: ["mp4", "mov", "avi", "mkv", "webm"],
+    transformation: [{ quality: 95 }],
   },
 });
 

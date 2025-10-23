@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Clock, FileText, Shield } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, FileText, Shield, Play } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -95,12 +95,13 @@ export default function BulkMediaCard({ media }: BulkMediaCardProps) {
               className="object-cover transition-transform duration-500 group-hover:scale-110"
             />
           ) : isVideo ? (
-            <video
-              src={currentMediaUrl}
-              className="w-full h-full object-cover"
-              muted
-              playsInline
-            />
+            // Video card with play button
+            <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center relative">
+              {/* Play Button */}
+              <div className="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <Play className="w-8 h-8 text-gray-800 ml-1" fill="currentColor" />
+              </div>
+            </div>
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-600 to-gray-800">
               <span className="text-gray-400 text-sm">Audio Preview</span>
